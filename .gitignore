@@ -102,3 +102,10 @@ desktop.ini
 # "Project Redline/" contains only its own .git dir and a .DS_Store.
 # Remove this line and `rm -rf "Project Redline/.git"` if you want it tracked.
 Project Redline/
+
+# ---------- Raw fetch artifacts from research agents ----------
+# Scraped pages/API dumps; can carry third-party keys and are not source material.
+research/*.html
+research/*.json
+research/*.yml
+research/socrata_err.txt

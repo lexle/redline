@@ -1,85 +1,118 @@
 # Redline — Research Summary
 
-Synthesis of four parallel research passes (`agent-1-who-has-this-pain.md`, `agent-2-what-goes-wrong.md`, `agent-3-what-already-exists.md`, `agent-4-who-would-pay.md`). Each agent ran under a hard cap of 12 web searches / 15 page reads and an 8-finding stop rule, with a source URL required for every claim.
+Synthesis of the research sprint. Sources: `agent-1-who-has-this-pain.md` (consolidated from
+three passes), `agent-2-what-goes-wrong.md`, `agent-3-what-already-exists.md`,
+`agent-4-who-would-pay.md`. Every agent ran under a 12-search cap with a source URL required
+for each claim.
 
-**Read this caveat first.** Three of the four legs came back solid. The one you most wanted — *real people, in their own words, describing being burned* — came back thin: Agent 1 produced **3 sourced findings, not 8**, all from Hacker News, because Reddit was unreachable by the search tool and Avvo, JustAnswer, ConsumerAffairs, Quora and NYC.gov all returned HTTP 403 to the fetch tool. So the voice-of-customer evidence below is real but narrow (developers, employees, one gamer), and it does **not** cover tenants, small-business owners, or creators — three of the segments the willingness-to-pay research says are your best targets. This is a tooling gap, not proof the pain is absent, but it means the demand side of your hypothesis is currently **assumed, not evidenced**.
+**Status of the evidence.** The first pain-research pass failed — 3 findings, no consumer forum
+reached. A retry got past the blocks and the pain leg now stands on **18 sourced findings with
+verbatim quotes**, from Reddit (via the pullpush archive API), the CFPB complaint database, the
+FTC, and NPR. The earlier verdict that "the pain evidence is the weakest leg" no longer holds.
+A different and sharper problem took its place — see §5.
 
 ---
 
 ## 1. The three sharpest pain points
 
-### A. A freelancer doing unpaid legal analysis on a clause they can't parse — and negotiating it alone, on day one
-A developer onboarding to the freelance marketplace Gigster on the contract's IP-assignment language:
+### A. People sign things they know they don't understand, and only ask for help afterwards
+A consumer's own words in a CFPB complaint about mortgage paperwork:
 
-> "I am a little uncomfortable with some of the language in sections 2.1 & 2.2 ... This language seems quite broad and what constitutes 'Community Code' seems a bit difficult to define." — and, on why it's hard to push back: "personally I wanted the first impression I left to be that I'm a 'team player,' as opposed to starting a legal battle on day one."
+> "My wife and I signed documents that we did not understand we really need some help"
 
-Source: https://news.ycombinator.com/item?id=13544336 (thread: https://news.ycombinator.com/item?id=13541162)
+https://www.consumerfinance.gov/data-research/consumer-complaints/search/detail/11244754
 
-Why it's sharp: it contains the whole product in one quote — a specific clause, an inability to determine its scope, and the social cost of raising it. The "team player" line is the strongest argument in this research for the **drafted counter-offer** feature: the barrier isn't only comprehension, it's having polite, credible language to send back.
+This is the product thesis stated by a stranger, unprompted. Note the tense: *signed*. The
+request for help arrives after the signature, which is a real go-to-market problem (§5).
 
-### B. Signing something you only understand years later
-A UK employee on the IP/moral clause in their employment contract:
+### B. A tenant manually performing Redline's job on herself — after signing
+She signed, then went looking for an early-termination clause, couldn't find one, and pasted her
+lease's default clause to Reddit strangers to ask what it meant:
 
-> "Yes, hindsight is a wonderful thing - I signed this 3.5 years ago fresh out of university and didn't pay enough attention to the small print, I realise that now."
+> "So I just signed my lease agreement; and I notice that the document does not have an early term clause"
 
-Source: https://news.ycombinator.com/item?id=3872252 (thread: https://news.ycombinator.com/item?id=3871813)
+> "Tenant shall be responsible for all rent due for the balance of the Lease term, even though Tenant may no longer be able to live in or use the Premises due to the eviction."
 
-Why it's sharp: this is the failure mode Redline exists to prevent — the gap between "signed" and "understood" persisting for years. It also names the moment of purchase intent: it arrives *late*, after harm, which is a real go-to-market problem (see §5).
+https://www.reddit.com/r/Tenant/comments/1kfccmc/renting_from_a_private_landlord_no_early/
 
-### C. Being bound by terms added after you agreed
-A Star Citizen crowdfunding backer, on the developer applying an arbitration clause added to the ToS after his pledge:
+The closest thing in this research to a live demo of the product. She wanted: find the clause
+that governs my situation, tell me in plain English what it does to me, cite the sentence.
 
-> "Right off the bat, they assert the arbitration clause applied to everything, even though it plainly didn't. I had to give the judge a copy of the first terms of services that clearly show that the arbitration clause was not there for the first few transactions."
+### C. Someone who caught a dangerous clause — and got it struck out
+A subcontractor on a clause making him liable for the full cost of completing a three-year job
+if he left for any reason:
 
-Source: https://news.ycombinator.com/item?id=17558763 (reproducing now-dead Motherboard/Vice reporting — the HN reproduction is the only record that could be verified, flag this one)
+> "I was startled to read that if I didn't complete the three year job for their client for any reason I would be liable for any and all expenses related to completing the job. ... That was a total WTF clause as far as I was concerned and I had them strike it out, which they did after a bit of hemming and hawing."
 
-Why it's sharp: it shows a "read the document you signed" tool has a version problem. The document a user uploads today may not be the one that binds them. A Q&A box that answers "only from the document" is trustworthy only if it's clear *which* version it's answering from.
+https://news.ycombinator.com/item?id=1794718
+
+The counterfactual that validates the counter-offer feature: pushing back **works**. What it
+cost him was a careful manual read most people will never do. And a freelancer in a parallel
+case names the other half of the barrier — not comprehension, but nerve:
+
+> "personally I wanted the first impression I left to be that I'm a 'team player,' as opposed to starting a legal battle on day one."
+
+https://news.ycombinator.com/item?id=13544336
 
 ---
 
 ## 2. Clause types that matter most, ranked
 
-Positions 1–4 rest on hard numbers; 5–8 are directionally right but rest on advocacy-group or practitioner commentary. No regulator or survey ranks clause types head-to-head — this is a synthesis across separately-scoped sources, not a measured ranking.
+Positions 1–4 rest on hard numbers; 5–8 on advocacy or practitioner commentary. No regulator
+ranks clause types head-to-head — this is a synthesis, not a measured study.
 
 | # | Clause type | Evidence | Confidence |
 |---|---|---|---|
-| 1 | **Auto-renewal / hard-to-cancel** | FTC negative-option record cites "tens of thousands of consumer complaints"; active FTC suits vs. Uber, Amazon, Chegg, LA Fitness; NY AG took $600K from Equinox over cancellation friction | **High** |
-| 2 | **Arbitration + class-action waiver** | CFPB 2015 study: up to 80M consumers covered in credit cards alone; class-action waivers grew 16%→43% of contracts (2012→2014) | High on prevalence, medium on felt harm |
-| 3 | **Payment terms / non-payment (freelance)** | Freelancers Union: 71% hit payment trouble at some point, avg **$5,968/yr lost** (13% of income); 2022 NY survey: 60–62% never paid for some work, 91% paid late | **High** |
-| 4 | **Non-compete / non-solicit** | ~30M US workers (1 in 5) bound; FTC's Rollins case covered 18,000+ mostly low-wage employees | Medium-high |
-| 5 | Joint-and-several liability (leases) | NCLC rental junk-fee comments; no complaint-count data found | Low-medium |
-| 6 | IP assignment (freelance) | Practitioner blogs only; one cited $15K dispute | Low-medium |
-| 7 | Unilateral amendment ("we may change these terms") | FTC policy blog flags it as potentially unfair/deceptive; proposed (not finalized) CFPB rule would ban it | Low-medium |
-| 8 | Indemnification / liability caps | Law-firm commentary only, no quantified data | Low |
+| 1 | **Auto-renewal / hard-to-cancel** | FTC negative-option record cites "tens of thousands of consumer complaints"; active FTC suits vs. Uber, Amazon, Chegg, LA Fitness; NY AG took $600K from Equinox over cancellation friction. **Also the single most common shape in our own pain findings — 5 of 18.** | **High** |
+| 2 | **Arbitration + class-action waiver** | CFPB: up to 80M consumers covered in credit cards alone; class-action waivers grew 16%→43% of contracts (2012→2014) | High on prevalence, medium on felt harm |
+| 3 | **Payment terms / non-payment (freelance)** | Freelancers Union: 71% hit payment trouble at some point, avg **$5,968/yr lost**; 2022 NY survey: 60–62% never paid for some work | **High** |
+| 4 | **Non-compete / non-solicit** | ~30M US workers bound; FTC's Rollins case covered 18,000+ mostly low-wage employees | Medium-high |
+| 5 | Joint-and-several liability (leases) | NCLC rental junk-fee comments; no complaint-count data | Low-medium |
+| 6 | IP assignment (freelance) | Practitioner blogs; one cited $15K dispute | Low-medium |
+| 7 | Unilateral amendment | FTC policy blog; proposed (not finalized) CFPB rule | Low-medium |
+| 8 | Indemnification / liability caps | Law-firm commentary only | Low |
 
-Sources: https://www.hklaw.com/en/insights/publications/2025/09/ftc-steps-up-subscription-enforcement-after-click-to-cancel-rule · https://ag.ny.gov/press-release/2025/attorney-general-james-secures-600000-fitness-company-equinox-its-hard-cancel · https://files.consumerfinance.gov/f/201503_cfpb_factsheet_arbitration-study.pdf · https://www.onlabor.org/wp-content/uploads/2017/05/FU_NonpaymentReport_r3.pdf · https://blog.freelancersunion.org/2022/05/12/over-60-of-ny-freelancers-report-not-being-paid-for-work-performed/ · https://www.americanbar.org/groups/business_law/resources/business-law-today/2026-may/ftc-actions-worker-noncompetes/ · https://www.nclc.org/wp-content/uploads/2023/02/Final-NCLC-et-al.-Group-Comments-re-Rental-Housing-Junk-Fees-with-Addenda.pdf · https://www.ftc.gov/policy/advocacy-research/tech-at-ftc/2024/02/ai-other-companies-quietly-changing-your-terms-service-could-be-unfair-or-deceptive
+**Three findings that should shape the product spec:**
 
-**Two findings that should change the product spec:**
-
-- **#3 is not a clause — it's an absence.** The biggest measured dollar harm to freelancers comes from what the contract *fails to say* about payment. A tool that only ranks clauses that *are* present will miss the highest-value finding for your strongest segment. Redline needs to flag **missing protections**, not just dangerous language.
-- **#2 and #7 are harm-multipliers, not triggers.** Arbitration and unilateral-amendment clauses cause no felt pain until something else goes wrong. Ranking them by "severity" will put clauses at the top of the list that the user does not experience as urgent — a severity model built on legal exposure alone will feel miscalibrated to the reader.
-
-**No evidence at all was found** for personal guarantees, kill fees, or fee escalators. They ran out of budget; treat them as uncovered, not absent.
+- **#3 is not a clause, it's an absence.** The biggest measured dollar harm to freelancers comes
+  from what the contract *fails to say* about payment. A tool that only ranks clauses that are
+  present will miss the highest-value finding for the segment most likely to pay. Redline must
+  flag **missing protections**, not just dangerous language.
+- **#2 and #7 are harm-multipliers, not triggers.** They cause no felt pain until something else
+  goes wrong. A severity model built on legal exposure alone will rank them top and feel
+  miscalibrated to the reader.
+- **Deadlines are a separate feature from clause risk.** In findings 4–8 of the pain file, the
+  harm is a notice window stated once — *"auto renews unless written notice is given 10 days
+  prior"*. That is date extraction, not risk ranking.
 
 ---
 
 ## 3. Where the existing tools are weak
 
-The market splits cleanly and there is a real hole in the middle.
+**Enterprise CLM + AI review** (Ironclad/Jurist, LinkSquares, Evisort, LawGeex, Robin AI,
+Spellbook): all quote-priced, five-to-six figures a year, built for legal-ops teams working
+against an internal playbook. Complaints centre on search, editing friction and setup — one
+reviewer called Ironclad "choose your own adventure," daunting without a full-time admin.
+Unreachable for a person with one lease.
 
-**Enterprise CLM + AI review** (Ironclad/Jurist, LinkSquares, Evisort, LawGeex, Robin AI, Spellbook): all quote-priced, five-to-six figures a year (Ironclad's Jurist reportedly $50K–$200K/yr per third-party trackers), built for legal-ops teams processing volume against an internal playbook. Common complaints are search, editing friction, and setup complexity — one reviewer called Ironclad "choose your own adventure," daunting without a full-time admin. None of it is reachable by a person with one lease.
+**Consumer-facing:** Rocket Lawyer's "Rocket Copilot" is the closest analog but sits inside a
+subscription whose billing/cancellation pattern dominates its negative reviews (~60–70% of
+Trustpilot negatives). ToS;DR is the only free plain-English consumer tool found, but it covers
+only pre-analysed major-platform ToS and **cannot take your uploaded document**.
 
-**Consumer-facing:** Rocket Lawyer's "Rocket Copilot" is the closest analog but is bundled into a subscription platform whose billing/cancellation pattern dominates its negative reviews (~60–70% of Trustpilot negatives). ToS;DR is the only free plain-English consumer tool found — but it only covers pre-analyzed major-platform ToS and **cannot take your uploaded document**, and it's volunteer-run with an admitted funding gap.
+**Four gaps:**
+1. Nobody serves the individual with a single one-off document at a self-serve price.
+2. **The drafted counter-offer was not observed in any product researched.** Enterprise tools
+   redline against a playbook you're assumed to have. A layperson has none. Most defensible differentiator.
+3. **A document-scoped Q&A box was not found as a shipped feature.** Caveat: this rests on vendor
+   blogs warning people off ChatGPT — self-serving framing, not proof.
+4. **DoNotPay's FTC settlement** (Feb 2025, $193K, deceptive "AI lawyer" claims) is the
+   positioning lesson: risk attaches to claiming to *replace* a lawyer, not to explaining a document.
 
-**The four specific gaps found:**
-1. **Nobody serves the individual with a single one-off document** at a self-serve price with severity ranking.
-2. **The drafted counter-offer per clause was not observed in any product researched.** Enterprise tools redline against a company's own playbook — they assume you *have* a playbook. A layperson doesn't. This is your most defensible differentiator on current evidence.
-3. **A document-scoped Q&A box was not found as a shipped feature anywhere.** Caveat: the evidence for this gap is indirect — it comes from vendor blogs warning people off ChatGPT for hallucination/leakage reasons, which is self-serving framing, not proof no one has built it.
-4. **DoNotPay's FTC settlement (Feb 2025, $193K, deceptive "AI lawyer" claims)** is the positioning lesson: regulatory risk attaches to claiming to *replace* a lawyer, not to explaining a document. Source: agent-3 file.
+**The real competitor is not a company** — it's someone pasting their lease into ChatGPT for free.
 
-**The real competitor is not a company.** It's someone pasting their lease into ChatGPT for free. Zero switching cost, zero incremental spend for anyone already subscribed. Redline has to be visibly better than that, not better than Ironclad.
-
-*Not checked before the search cap (absence of evidence, not evidence of absence):* Luminance, Kira, ContractPodAi, Legartis, LegalOn, Diligen, Lexion, Legalese Decoder, Loio, Detangle.
+*Not checked before the cap:* Luminance, Kira, ContractPodAi, Legartis, LegalOn, Diligen, Lexion,
+Legalese Decoder, Loio, Detangle.
 
 ---
 
@@ -88,41 +121,76 @@ The market splits cleanly and there is a real hole in the middle.
 | Segment | Evidence | What the alternative costs today |
 |---|---|---|
 | **Freelancers / contractors** | **Strong** | Lawyer flat fee $400–$460 avg; ContractsCounsel marketplace avg **$670** across 635 bids |
-| **Small business owners** | **Strong** | ~$300/hr; **51% say they avoid counsel because it's too expensive**, while 1 in 4 call legal issues their biggest risk |
-| **Creators / brand deals** | **Strong** | Review starts at **$750** (10 pages), with retainer/multi-review discounts — an explicit repeat-purchase signal |
-| **Employees (offer letters, non-competes)** | **Moderate** | $350–$1,000 flat; but ~once per job change — a one-off, not a subscription |
-| **Renters** | **Weak on WTP** | Lawyer flat fee $300–$450 exists, but **every renter-facing resource found was free or income-gated legal aid**. No evidence renters pay out of pocket today. |
-| **Startup founders (term sheets)** | **Weak / not comparable** | $15K–$75K per round — but that's deal counsel with fiduciary responsibility, not evidence anyone buys an explainer tool |
+| **Small business owners** | **Strong** | ~$300/hr; **51% avoid counsel because it's too expensive**, while 1 in 4 call legal issues their biggest risk |
+| **Creators / brand deals** | **Strong** | From **$750** (10 pages), with retainer discounts — an explicit repeat-purchase signal |
+| **Employees (offer letters, non-competes)** | **Moderate** | $350–$1,000 flat; but roughly once per job change |
+| **Renters** | **Weak on WTP** | $300–$450 flat fee exists, but **every renter-facing resource found was free or income-gated legal aid** |
+| **Startup founders (term sheets)** | **Weak / not comparable** | $15K–$75K per round — deal counsel, not an explainer tool |
 
-**Pricing anchors:** LegalShield $29.95–$99/mo · Rocket Lawyer $39.99/mo · and the direct comp below.
+**Anchors:** LegalShield $29.95–$99/mo · Rocket Lawyer $39.99/mo.
 
-**A direct competitor already exists at your price point.** QwickContractReview.com charges a **flat $99 per review** for plain-English summary, red-flag detection and obligation highlights in 24–48 hours, explicitly targeting freelancers and small businesses, with subscriptions for repeat users. Founder quote: *"too many small businesses and freelancers sign contracts they don't fully understand — and end up paying the price later."* Source: https://markets.financialcontent.com/clarkebroadcasting.mymotherlode/article/247pressrelease-2025-10-2-qwickcontractreviewcom-delivers-99-contract-reviews-in-48-hours-empowering-small-businesses-and-freelancers-nationwide
+**A direct competitor already exists at this price point.** QwickContractReview.com charges a flat
+**$99 per review** for plain-English summary, red-flag detection and obligation highlights,
+explicitly targeting freelancers and small businesses. Founder: *"too many small businesses and
+freelancers sign contracts they don't fully understand — and end up paying the price later."*
+https://markets.financialcontent.com/clarkebroadcasting.mymotherlode/article/247pressrelease-2025-10-2-qwickcontractreviewcom-delivers-99-contract-reviews-in-48-hours-empowering-small-businesses-and-freelancers-nationwide
 
-**Plausible read:** ~$99/review or ~$20–40/mo sits below every lawyer flat fee and at parity with the one AI-native comp. Best first segment on the evidence is **freelancers and small-business owners**; creators are a strong second with the highest existing price tolerance ($750/review) and a demonstrated repeat-purchase pattern.
+**Read:** ~$99/review or ~$20–40/mo sits below every lawyer fee and at parity with the one AI comp.
 
 ---
 
-## 5. What contradicts your hypothesis
+## 5. What contradicts the hypothesis
 
-Five things, in order of how much they should worry you.
+**1. The people with the sharpest pain and the people with the money may not be the same people.**
+This is the central tension, and it got *sharper* when the pain evidence improved. Our acute,
+quotable, first-person harm is overwhelmingly **consumer**: gyms, subscriptions, mortgages,
+residential leases. Our strongest willingness-to-pay evidence is **freelancers, small businesses
+and creators**. Those barely overlap. And note what we could not find after a dedicated retry:
+**not one freelancer describing a specific clause that actually cost them money.** The two
+freelance findings are both near-misses — people who caught it in time. The segment most likely
+to pay has the weakest pain voice in the entire corpus.
 
-**1. The pain evidence is the weakest leg, and it's the leg you asked to stand on.** Three quotes, all Hacker News, zero from tenants or small-business owners. You wanted the PRD anchored in real pain; right now it's anchored in three developers-and-adjacent anecdotes plus regulator data about *categories* of harm. That's enough to justify continuing, not enough to justify a PRD. **This is fixable and should be fixed before you write one** — Reddit was blocked by tooling, not empty.
+**2. Renters are the most vividly evidenced segment and possibly the worst first customer.**
+Three of the most compelling quotes are tenants. And the entire support ecosystem serving them is
+free legal aid — no evidence any renter pays for lease review today.
 
-**2. Every stated willingness-to-pay number is what a *lawyer* charges, not what a *user said they'd pay.*** No survey of renters, employees, freelancers or founders stating a price for a contract-explainer tool was found. "A lawyer costs $670, so $99 is cheap" is an inference, and it may be wrong: the alternative most people actually choose is not the $670 lawyer, it's doing nothing, or pasting it into ChatGPT for free. Your competition is $0, not $670.
+**3. The intent arrives after the signature.** *"signed documents that we did not understand"*,
+*"I just signed my lease agreement; and I notice"*, *"hindsight is a wonderful thing"*. People
+reach for help once it has already gone wrong, when the product can no longer prevent anything.
+Redline needs an answer to "why would someone pay *before* they've been burned?" — the pre-signature
+moment is a harder sell than the evidence makes it look.
 
-**3. Renters may be the worst first segment despite being the most intuitive one.** Rich data on what lawyers charge, and none on renters paying anything — the entire ecosystem serving them is free legal aid. If leases are in your top-three document types for launch, that's a monetization headwind, not a market.
+**4. The most common pain shape may not need this product.** Auto-renewal is the single most
+frequent pattern in both regulator data and our findings, and the harm is almost always one
+sentence with a date in it. That is a deadline tracker, not a contract analyst. If this is the
+wedge, the product is a different product.
 
-**4. Two features may be solving a problem people don't feel at signing time.** Severity ranking will surface arbitration and unilateral-amendment clauses at the top; both are harm-*multipliers* the reader won't experience as urgent. And the "hindsight is a wonderful thing" quote points at a timing problem: the pain is felt *after* signing, when the product can no longer help. Intent to buy arrives at the wrong moment. You need an answer to "why would someone pay before they've been burned?"
+**5. Every willingness-to-pay figure is a lawyer's price, not a user's stated price.** No survey
+of any segment naming a price for a contract-explainer tool was found. "A lawyer costs $670 so
+$99 is cheap" is an inference — and the alternative most people actually choose is free: do
+nothing, or paste it into ChatGPT.
 
-**5. A $99 flat-fee AI contract-review product aimed at your exact segments already shipped.** That cuts both ways — it validates the mechanic and the price, and it means you are not first. Nothing was found on its traction, so it's not evidence of a proven market either.
+**6. A $99 AI contract-review product aimed at these exact segments already shipped.** Validates
+the mechanic and the price; also means you are not first. Nothing found on its traction.
 
-**Does the evidence support building this?** Yes, conditionally. The clause-level harm is real and well documented by regulators, the market hole in the middle is real, and the counter-offer feature appears genuinely unserved. But the specific claim that individuals will **pay** to understand a document *before* they sign it is, on this research, unevidenced — every price number found is what someone else charges, not what a user said yes to. That's the one thing worth testing before a PRD, and it's testable cheaply: 15 conversations with freelancers and small-business owners, and a price question asked out loud.
+**Does the evidence support building this?** Yes — more confidently than before on the pain, less
+confidently on the buyer. The harm is real, well documented, and people describe it in almost
+exactly the product's own terms. The market hole is real and the counter-offer feature appears
+genuinely unserved. What remains unevidenced is the specific claim that someone will **pay,
+before signing, to avoid a harm they have not yet felt.** That is one testable question, and it
+is cheap: 15 conversations with freelancers and small-business owners, asking a price out loud.
+Worth doing before the PRD, not after.
 
 ---
 
 ## Research quality notes
 
-- **Agent 1** (pain): 13 searches (1 over cap, self-reported), 11 fetch attempts, most 403/429/timeout. **3 of 8 findings.** Reddit inaccessible.
-- **Agent 2** (clauses): 10 searches, 0 page reads, 10 findings. Ranking is a synthesis, not a measured study — flagged per item.
-- **Agent 3** (competitors): 11–12 searches, 0 page reads. 11 products. Most pricing is third-party estimate, not vendor-confirmed.
-- **Agent 4** (WTP): 10 searches, 2 reads (1 timed out). The BusinessWire 82%/77% small-business figures come from a search snippet, not a direct read — **re-verify before relying on them.**
+- **Pain:** 18 findings across 3 passes. Retry #1 reached Reddit only via pullpush.io (heavily
+  rate-limited); retry #2 reached CFPB via WebFetch (curl is Akamai-blocked). **All CFPB quotes are
+  verbatim only within a ~125-character extract** — not verified full narratives. Never reached:
+  Reddit comment threads, r/smallbusiness, Avvo/JustAnswer/ConsumerAffairs/Quora.
+- **Clauses:** 10 findings. The ranking is a synthesis across differently-scoped sources, not a
+  measured study. No data found on personal guarantees, kill fees, or fee escalators.
+- **Competitors:** 11 products. Most pricing is third-party estimate, not vendor-confirmed.
+- **Willingness to pay:** 10 findings. The BusinessWire 82%/77% small-business figures come from a
+  search snippet, not a direct read — **re-verify before relying on them.**
