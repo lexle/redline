@@ -1,0 +1,104 @@
+# ---------- Credentials & secrets (keep this block first) ----------
+.env
+.env.*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+*.crt
+credentials.json
+service-account*.json
+gha-creds-*.json
+secrets.json
+secrets.yml
+secrets.yaml
+.npmrc
+.yarnrc
+.netrc
+.pypirc
+.aws/
+.ssh/
+*.sqlite
+*.sqlite3
+*.db
+
+# ---------- Dependencies ----------
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+bower_components/
+jspm_packages/
+
+# ---------- Next.js ----------
+.next/
+out/
+build/
+dist/
+.swc/
+
+# ---------- Testing & coverage ----------
+coverage/
+.nyc_output/
+*.lcov
+
+# ---------- Caches & tooling ----------
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+.turbo/
+.vercel/
+.netlify/
+*.tsbuildinfo
+next-env.d.ts
+
+# ---------- Logs ----------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# ---------- OS files ----------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ---------- Editors ----------
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# ---------- Local agent / scratch ----------
+.claude/settings.local.json
+
+# ---------- Excluded: empty nested git repo (no commits, no files) ----------
+# "Project Redline/" contains only its own .git dir and a .DS_Store.
+# Remove this line and `rm -rf "Project Redline/.git"` if you want it tracked.
+Project Redline/
