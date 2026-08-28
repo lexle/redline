@@ -54,3 +54,7 @@ misread.
   it; do not update it, and do not read it as current.
 - `Project Redline/` is an empty git repo with no commits. It is gitignored, and
   untracking it will break `git add -A` with "does not have a commit checked out".
+
+## Agent skills
+
+Issue tracker, triage labels, and domain-doc layout: see `docs/agents/`.
