@@ -179,7 +179,7 @@ exactly the product's own terms. The market hole is real and the counter-offer f
 genuinely unserved. What remains unevidenced is the specific claim that someone will **pay,
 before signing, to avoid a harm they have not yet felt.** That is one testable question, and it
 is cheap: 15 conversations with freelancers and small-business owners, asking a price out loud.
-Worth doing before the PRD, not after.
+Worth doing before the PRD, not after. Alternatively, a free model could significantly simplify marketing and user testing. If Redline has been helpful, users can leave a good review or make a donation. This would make the go-to-market process easier and allow us to identify the real pain points in the market without a paywall getting in the way. 
 
 ---
 
@@ -193,4 +193,4 @@ Worth doing before the PRD, not after.
   measured study. No data found on personal guarantees, kill fees, or fee escalators.
 - **Competitors:** 11 products. Most pricing is third-party estimate, not vendor-confirmed.
 - **Willingness to pay:** 10 findings. The BusinessWire 82%/77% small-business figures come from a
-  search snippet, not a direct read — **re-verify before relying on them.**
+  search snippet, not a direct read. unlikely to be that high.
