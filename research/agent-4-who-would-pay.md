@@ -28,7 +28,19 @@ Redline's pitch (plain-English contract summary, ranked risky clauses with sourc
 
 **Willingness to pay / current spend:**
 - **51% of small business owners** say the main reason they avoid legal counsel is that **it's too expensive**, despite **1 in 4** saying legal issues pose the biggest risk to their company. [via search summary of Rocket Lawyer/related survey coverage](https://legalcounselpa.com/blog/lawyer-contract-review-cost-guide/)
-- A 2025 study found **82%** of small business owners are concerned about protecting the business from contract-related financial liability, and **77%** worry about reputational damage — yet most still forgo counsel (article headline: "Legal Pitfalls Dent Small Business Owners' Bottom Line, Yet Most Forgo Counsel"). [BusinessWire](https://www.businesswire.com/news/home/20250519395084/en/New-Study-Legal-Pitfalls-Dent-Small-Business-Owners-Bottom-Line-Yet-Most-Forgo-Counsel) — note: WebFetch on this specific page timed out during this research pass, so the 82%/77% figures are taken from the search-engine summary snippet, not a direct page read; treat as lower-confidence sourcing than other lines in this doc.
+- **CORRECTED 2026-09-07.** The **82%** contract-liability / **77%** reputational-damage figures do
+  **not** appear in the BusinessWire/LegalShield release and were misattributed. They are verbatim from a
+  **Researchscape survey commissioned by Rocket Lawyer** (n=1,000 US adults, Q1/Q2 2025), published to
+  announce Rocket Copilot Contract Review — a direct competitor. Vendor-commissioned, and the "small
+  business owners" subsample is not sized.
+  [Rocket Lawyer](https://www.rocketlawyer.com/newsroom/rocket-lawyer-launches-rocket-copilot-contract-review)
+- The BusinessWire/LegalShield study (n=299 small business owners and managers, fielded 5 April 2025,
+  commissioned by LegalShield) actually reports: **60% avoided retaining a lawyer due to perceived cost
+  and complexity**; 47% lost at least $500 to legal problems; nearly 1 in 5 lost $5,000+; 40% missed
+  revenue over legal uncertainty; 61% worry about accidentally violating laws; 83% say access to
+  affordable legal services is important; 25% considered closing. The 60% figure independently
+  corroborates the 51%-avoid-counsel-on-cost line above, from a separate survey.
+  [LegalShield](https://www.legalshield.com/newsroom/legal-pitfalls-dent-small-business-owners-bottom-line)
 - Attorneys charge an average of **$300/hour** for small-business contract work. [search summary](https://legalcounselpa.com/blog/lawyer-contract-review-cost-guide/)
 - Same **QwickContractReview.com $99 flat fee** AI-review product targets this segment directly alongside freelancers. [Financial Content](https://markets.financialcontent.com/clarkebroadcasting.mymotherlode/article/247pressrelease-2025-10-2-qwickcontractreviewcom-delivers-99-contract-reviews-in-48-hours-empowering-small-businesses-and-freelancers-nationwide)
 
@@ -122,7 +134,7 @@ Redline's $99-and-under-per-review or ~$20–40/month subscription range would s
 - No hard number for how many contracts a typical freelancer, small-business owner, or creator signs per year (frequency-per-segment data is largely absent industry-wide; the one search attempted returned "no single standard answer").
 - No survey data of renters, employees, or founders stating a specific price they personally would pay for a contract-explainer tool.
 - No pricing data for Redline's likely closest true category peers beyond QwickContractReview.com — could not find other AI contract-review consumer products with public pricing to triangulate against.
-- Could not confirm the BusinessWire small-business study's 82%/77% figures via a direct page read (the fetch timed out); those numbers come from a search-engine-generated summary of the page, not a direct read, and should be re-verified before being treated as load-bearing.
+- ~~Could not confirm the BusinessWire small-business study's 82%/77% figures~~ **Resolved 2026-09-07**: the figures were misattributed. They belong to a Rocket Lawyer-commissioned Researchscape survey, not the LegalShield study. See the corrected entry above.
 - No data on conversion or retention for LegalShield/Rocket Lawyer subscriptions specifically driven by contract-review use cases (i.e., can't tell how much of their revenue is attributable to this exact pain point vs. other legal services bundled in).
 
 ## Searches and reads used

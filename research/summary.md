@@ -179,7 +179,7 @@ exactly the product's own terms. The market hole is real and the counter-offer f
 genuinely unserved. What remains unevidenced is the specific claim that someone will **pay,
 before signing, to avoid a harm they have not yet felt.** That is one testable question, and it
 is cheap: 15 conversations with freelancers and small-business owners, asking a price out loud.
-Worth doing before the PRD, not after. Alternatively, a free model could significantly simplify marketing and user testing. If Redline has been helpful, users can leave a good review or make a donation. This would make the go-to-market process easier and allow us to identify the real pain points in the market without a paywall getting in the way. 
+Worth doing before the PRD, not after.
 
 ---
 
@@ -192,5 +192,14 @@ Worth doing before the PRD, not after. Alternatively, a free model could signifi
 - **Clauses:** 10 findings. The ranking is a synthesis across differently-scoped sources, not a
   measured study. No data found on personal guarantees, kill fees, or fee escalators.
 - **Competitors:** 11 products. Most pricing is third-party estimate, not vendor-confirmed.
-- **Willingness to pay:** 10 findings. The BusinessWire 82%/77% small-business figures come from a
-  search snippet, not a direct read. unlikely to be that high.
+- **Willingness to pay:** 10 findings. The 82%/77% figures were **misattributed** to the
+  BusinessWire/LegalShield release. Verified 2026-09-07: they are verbatim from a **Researchscape
+  survey commissioned by Rocket Lawyer** (n=1,000 US adults, Q1/Q2 2025) announcing Rocket Copilot
+  Contract Review. Two caveats that limit their weight: the survey was commissioned by a direct
+  competitor to launch a competing product, and the sample is 1,000 US adults while the claim is
+  stated about "small business owners" — the subsample is not sized.
+  https://www.rocketlawyer.com/newsroom/rocket-lawyer-launches-rocket-copilot-contract-review
+- **Rocket Copilot Contract Review is described as free** in that release, backed by 16 years of
+  Rocket Lawyer's proprietary analysis data, with paid consultations upsold via Rocket Legal+. §3
+  describes it as sitting inside a subscription; that is out of date and understates the
+  competitive threat.

@@ -322,9 +322,10 @@ unserved rests on the eleven products that were checked.
 Q&A rests on vendor blogs warning people off ChatGPT — self-serving framing, not proof.
 
 **Evidence quality limits, from the research's own notes**: all CFPB quotes are verbatim only
-within a ~125-character extract, not verified full narratives. The BusinessWire small-business
-figures (82%/77%) come from a search snippet rather than a direct read and must be re-verified
-before use. Reddit comment threads, r/smallbusiness, Avvo, JustAnswer, ConsumerAffairs and Quora
+within a ~125-character extract, not verified full narratives. The 82%/77% small-business figures were
+misattributed to a LegalShield study; they are in fact from a survey commissioned by **Rocket
+Lawyer**, a direct competitor, to launch its own free contract-review product, and the sample is
+1,000 US adults rather than small-business owners. They should not be treated as demand evidence. Reddit comment threads, r/smallbusiness, Avvo, JustAnswer, ConsumerAffairs and Quora
 were never reached. No data was found on personal guarantees, kill fees or fee escalators — three
 things this brief flags anyway, on judgement.
 
