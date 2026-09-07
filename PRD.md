@@ -16,8 +16,10 @@ year, reading one **before** they sign it.
 Three properties, each of which changes what gets built:
 
 - **They did not draft it and cannot fully read it.** The document is the counterparty's template.
-- **They sign repeatedly.** Several a year, not one every three years. This is what makes the saved
-  library (capability 6) worth building.
+- **They sign repeatedly.** Several a year, not one every three years — the assumption that made the
+  saved library (capability 6) worth building. **This is reopened as of 2026-09-07** (ADR-0002,
+  Amendment 2): a free incumbent changes what the alternative to buying is, so whether v1 serves a
+  repeat professional or a one-off user, and at what price, is undecided.
 - **They have not signed yet.** The counter-offer — the thing no competing product was found to do
   — has no function after signature.
 
@@ -29,10 +31,25 @@ Three properties, each of which changes what gets built:
 | Paste it into ChatGPT | Free, no citations, no memory of their red lines | Research §3: *"The real competitor is not a company — it's someone pasting their lease into ChatGPT for free."* |
 | Hire a lawyer | $400–$460 flat typical; **$670 average across 635 bids** on ContractsCounsel | Research §4 |
 | Buy an AI review | $99 flat per review (QwickContractReview, shipped 2025) | Research §4 |
+| **Use Rocket Copilot Contract Review** | **Free**, with email registration | [Rocket Lawyer newsroom](https://www.rocketlawyer.com/newsroom/rocket-lawyer-launches-rocket-copilot-contract-review) |
 
 **51% of small businesses avoid counsel because it is too expensive**, while 1 in 4 name legal
-issues as their biggest risk (research §4). That gap — knowing it matters, declining to pay $670
-to find out — is the space Redline occupies.
+issues as their biggest risk (research §4). A separate LegalShield survey (n=299) puts the same
+finding at **60% avoiding a lawyer over cost and complexity**. That gap — knowing it matters,
+declining to pay $670 to find out — is the space Redline occupies.
+
+**It is not an empty space.** Rocket Lawyer ships Rocket Copilot Contract Review free, trained on
+16 years of its own legal analysis data, targeting these exact users. On the evidence available it
+already does capability 1 (plain-English explanation) and capability 2 (flagging risks, naming
+liability limits and auto-renewals by example), with follow-up questions routed to a human Legal
+Pro behind a Rocket Legal+ membership. Two things are not evidenced in its public material: whether
+it quotes the exact sentence a finding came from, and whether it drafts language the Signer can
+send. That absence is not proof — it has not been tested against the product — and confirming it is
+a prerequisite for the positioning in §6.
+
+The consequence for this brief: Redline is not competing with inaction and ChatGPT. It is
+competing with a free incumbent that covers part of the same scope, and anything Redline charges
+for has to be something that incumbent demonstrably does not do.
 
 We are not serving renters, consumers with subscription auto-renewals, or one-off panic buyers.
 Section 6 says who that hurts.
@@ -117,7 +134,7 @@ Nothing beyond this list. Section 7 says what was excluded and why.
 
 ## 4. What good looks like
 
-Six tests. The first is a build gate; the rest are launch gates.
+Seven tests. The first is a build gate; the rest are launch gates.
 
 **1. Every risk flag cites a real sentence — 100%, enforced in CI.**
 For every flag on every document in the test corpus, the cited sentence is found verbatim in the
@@ -145,7 +162,15 @@ Two questions, both answerable: does the top-ranked flag agree with the reviewer
 whole clause type systematically mis-ranked? This is the only calibration the severity model will
 ever receive (ADR-0009), so it is a launch blocker with a real cost attached, not a nice-to-have.
 
-**6. Register holds under pressure.**
+**6. Rocket Copilot is tested directly, not assumed.**
+Run a real contract through Rocket Copilot Contract Review and record two things: whether it quotes
+the exact sentence each finding came from, and whether it drafts language the user can send. It is
+free, so this costs an afternoon. The entire paid claim rests on the answer, and it is currently an
+inference from a press release. If it turns out to cite verbatim and draft counter-offers, the
+differentiator in §6 does not exist and the buyer decision reopened in ADR-0002 has to close
+differently.
+
+**7. Register holds under pressure.**
 On documents where the answer depends on facts we do not have — the Signer's leverage, industry,
 jurisdiction — Redline says nothing rather than guessing (ADR-0007). Testable by constructing
 questions that cannot be answered from the text and confirming refusal, not hedged speculation.
@@ -212,10 +237,15 @@ differentiator found in no competing product, has no function once a document is
 *Worse off: the person who already signed — who is, on the evidence, the person actually asking
 for help.*
 
-**3. The repeat professional, not the one-off buyer.** (ADR-0002)
-The one-off $99 review matches both the observed behaviour and the direct competitor. It leaves
-the saved library as dead scope and pays full acquisition cost per sale.
-*Worse off: the one-off panic buyer — who is exactly who the research quotes describe.*
+**3. The repeat professional, not the one-off buyer. — REOPENED 2026-09-07.** (ADR-0002, Amendment 2)
+The original reasoning: the one-off $99 review matches both the observed behaviour and the direct
+competitor, but leaves the saved library as dead scope and pays full acquisition cost per sale.
+That argument assumed the alternative to buying was not buying. Rocket Copilot Contract Review is
+free, so the alternative is a free product from a known brand, and the decision is being re-argued
+rather than defended. Nothing downstream of it should be treated as settled — including the saved
+library, whose justification was repeat use.
+*Worse off, if it closes the same way: the one-off panic buyer, who is exactly who the research
+quotes describe.*
 
 **4. Probable harm, not worst-case legal exposure.** (ADR-0003)
 The Signer is not a lawyer and judges credibility by whether the top flag matches their intuition.
@@ -309,6 +339,12 @@ synthesis of the findings.
 **The intent arrives after the signature.** *"signed documents that we did not understand"*, *"I
 just signed my lease agreement; and I notice"*. We are building for a moment the research never
 observed anyone seeking help in. Why someone would pay *before* being burned is unanswered.
+
+**The "nobody serves this user" gap is false.** Research §3 lists as its first gap that nobody
+serves the individual with a single one-off document at a self-serve price. Rocket Copilot Contract
+Review does, at zero, from a brand these users already know. Research §3 describes Rocket Copilot as
+sitting inside a subscription; that is out of date. Any argument in this brief that rests on the
+market hole being unserved needs re-examining against that fact.
 
 **A competitor already ships this at $99.** QwickContractReview.com offers plain-English summary,
 red-flag detection and obligation highlights, targeting freelancers and small businesses. Nothing

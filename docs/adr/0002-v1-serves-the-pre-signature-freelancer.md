@@ -1,6 +1,9 @@
 # 0002. v1 serves the pre-signature repeat freelancer, not the renter
 
-Status: Accepted — 2026-09-04
+Status: Partially reopened — 2026-09-07
+- Segment (freelancers and small businesses, not renters): **Accepted**, 2026-09-04
+- Moment (pre-signature): **Accepted**, 2026-09-04
+- Buyer shape and pricing (repeat professional, paid): **REOPENED**, 2026-09-07 — see Amendment 2
 
 ## Decision
 
@@ -65,3 +68,59 @@ voice. We chose the wallet.
   to people we are not serving.
 - **Lease-specific and subscription-specific clause vocabulary is out of scope for v1**, and
   the flag library is tuned to freelance service agreements.
+
+## Amendment, 2026-09-07: the segment is not unserved
+
+Verification of a research citation surfaced a competitive fact this ADR was decided without.
+Rocket Lawyer ships **Rocket Copilot Contract Review free**, trained on 16 years of proprietary
+legal analysis data, aimed at exactly the small-business owners this ADR selects. On its public
+material it already covers plain-English explanation and risk flagging, with human follow-up behind
+a membership.
+
+**The segment choice stands** — the reasoning above concerned where pain and willingness to pay
+overlap, and a competitor serving the same people does not change that. What changes is everything
+downstream of it:
+
+- **Research §3's first gap ("nobody serves the individual at a self-serve price") is false.** Any
+  reasoning in this repo resting on it is unsound.
+- **The rejection of freemium above was argued on donation economics and segment drift, not on
+  competition.** Those arguments are untouched, but the surrounding situation is: the incumbent's
+  price is zero, so a paid v1 must justify its price against free rather than against $670.
+- **The paid repeat-professional call is the decision now under most stress.** It was chosen partly
+  because a one-off buyer pays full acquisition cost per sale. That logic assumed the alternative
+  to buying was not buying, not a free product from a known brand.
+- **What Redline charges for must be what Rocket Copilot demonstrably does not do.** On current
+  evidence that is the citation guarantee (ADR-0001), the drafted counter-offer, and red lines
+  driving the analysis. This is unconfirmed: absence from a press release is not absence from a
+  product, and it has not been tested directly. **Confirming it is a prerequisite, not a
+  formality.**
+
+## Amendment 2, 2026-09-07: the buyer decision is reopened
+
+Rocket Copilot Contract Review is free and covers part of this product's scope (Amendment 1). The
+decision to serve a paying repeat professional was made against an assumed alternative of *not
+buying*. The real alternative is a free product from a brand these users already know. That is new
+information material to the decision, so the decision is reopened rather than defended.
+
+**What is reopened:** whether v1 serves a repeat professional or a one-off user, and whether it is
+paid, free, or free with paid conversion. The rejections of the one-off $99 model and of
+freemium-with-donation recorded above were reasoned without this fact and should be re-argued, not
+reused.
+
+**What is not reopened:** the segment (freelancers and small businesses over renters) and the moment
+(pre-signature). Neither turns on the competitor's price — the first is about where pain and
+willingness to pay overlap, the second about when the counter-offer can function.
+
+**What has to be settled before this closes:**
+
+1. What Rocket Copilot actually does — specifically whether it quotes the exact sentence a finding
+   came from and whether it drafts sendable language. This is now a launch gate in PRD §4 and the
+   answer determines whether a paid claim exists at all.
+2. Whether the paid claim, if one exists, is large enough to charge for — verifiability, the drafted
+   counter-offer and red lines driving analysis are narrower than "understand what you are signing."
+3. Whether the saved library still earns its place. Its justification in this ADR was repeat use,
+   which is exactly what has been reopened.
+
+**Consequence for anything built in the meantime:** the analysis core is unaffected. The citation
+guarantee, the danger test, the output types and drafting do not depend on who pays or how often
+they return. Work blocked on this decision is limited to pricing, accounts and the saved library.
