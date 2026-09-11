@@ -1,6 +1,6 @@
 # 0009. The severity model is calibrated once, before launch, and never after
 
-Status: Accepted — 2026-09-04
+Status: Accepted — 2026-09-04; amended 2026-09-11 (capability count, see Amendment)
 
 ## Decision
 
@@ -40,3 +40,13 @@ in a way only outcomes would reveal.
   decision most likely to improve with outcome data.
 - **The pre-launch review is a real dependency**, not a nice-to-have: it is the only check the
   severity model will ever get, so it needs a real sample of real documents and a real lawyer.
+
+## Amendment, 2026-09-11: scope is seven capabilities
+
+CLAUDE.md listed six capabilities; PRD §3 lists seven, because missing protections (ADR-0005) are
+a capability of their own. CLAUDE.md now lists the same seven, in PRD order. The references above to
+"six capabilities" and to outcome capture as "a seventh capability" were counted against the old
+list.
+
+**The decision is unchanged.** Outcome capture would now be an eighth capability, and it is still
+rejected to hold scope.

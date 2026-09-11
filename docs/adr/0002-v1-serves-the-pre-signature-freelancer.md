@@ -29,8 +29,8 @@ auto-renewals, and one-off panic buyers are explicitly not served in v1.
 - **Free analysis with a donation ask, aimed at one-off users.** Considered and rejected. Its
   real insight is worth keeping: it sidesteps the one claim the research could not evidence — that
   someone will pay, before signing, to avoid a harm they have not felt — by declining to ask the
-  question. It also gives capability 6 a better justification than repeat use does, since "sign up
-  to keep your analysis" makes the saved library the conversion mechanism rather than a power-user
+  question. It also gives the saved library a better justification than repeat use does, since
+  "sign up to keep your analysis" makes it the conversion mechanism rather than a power-user
   archive. Rejected on revenue and on evidence: consumer donation conversion runs well under 1%
   against a $99/review direct comp and real per-document inference cost, and a donation never
   produces a stated price, which is the cheapest validation available to us. Secondary cost: at

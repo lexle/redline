@@ -3,8 +3,8 @@
 Status: ready-for-agent
 
 Covers PRD capabilities 1–4 (summary, risk flags, counter-offers, missing protections) and the
-extraction they depend on. Red lines (5), the question box (partial — see Out of Scope), and the
-saved library (6) get their own specs.
+extraction they depend on. The question box (5, partial — see Out of Scope), red lines (6), and
+the saved library (7) get their own specs.
 
 Governing decisions: ADR-0001 (citation invariant), ADR-0003 (severity ranking), ADR-0004 (danger
 test), ADR-0005 (absences), ADR-0006 (minor tiers), ADR-0007 (register), ADR-0008 (clean documents).
@@ -209,11 +209,11 @@ prerequisites for tests that PRD §4 treats as launch gates, not fixtures to be 
 
 ## Out of Scope
 
-- **Red lines (capability 5).** `analyse` takes them as a parameter so the seam is right, but
-  editing, storing and applying them is its own spec.
-- **The question box (capability 4).** Provenance tiering and refusal are built here because they
+- **The question box (capability 5).** Provenance tiering and refusal are built here because they
   govern all output; the Q&A surface is separate.
-- **The saved library (capability 6).** Nothing here persists beyond a single analysis.
+- **Red lines (capability 6).** `analyse` takes them as a parameter so the seam is right, but
+  editing, storing and applying them is its own spec.
+- **The saved library (capability 7).** Nothing here persists beyond a single analysis.
 - **Authentication, accounts, payments, billing.** Not needed to prove the analysis can be trusted.
 - **OCR.** Refused by ADR-0001, not deferred.
 - **Deadline and date extraction.** A different product per PRD §7.

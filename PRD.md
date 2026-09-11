@@ -17,7 +17,7 @@ Three properties, each of which changes what gets built:
 
 - **They did not draft it and cannot fully read it.** The document is the counterparty's template.
 - **They sign repeatedly.** Several a year, not one every three years — the assumption that made the
-  saved library (capability 6) worth building. **This is reopened as of 2026-09-07** (ADR-0002,
+  saved library (capability 7) worth building. **This is reopened as of 2026-09-07** (ADR-0002,
   Amendment 2): a free incumbent changes what the alternative to buying is, so whether v1 serves a
   repeat professional or a one-off user, and at what price, is undecided.
 - **They have not signed yet.** The counter-offer — the thing no competing product was found to do
@@ -275,7 +275,7 @@ claim to catch everything.*
 industry?" — which is exactly where Redline goes quiet.*
 
 **9. No calibration after launch.** (ADR-0009)
-Outcome capture as a seventh capability was considered and rejected to hold scope. Two other
+Outcome capture as an eighth capability was considered and rejected to hold scope. Two other
 routes that would have supplied the signal — selling to lawyers, and a free tier generating volume
 — were rejected in ADR-0002 for unrelated reasons.
 *Worse off: every Signer after the first. The severity model is fixed at whatever ships. ADR-0001
@@ -306,7 +306,7 @@ what v1 exists to prove.
 **Sharing a document between users.** Same reason.
 
 **Outcome capture and any post-launch feedback loop.** (ADR-0009) The only mechanism that would
-calibrate the severity model, declined to hold the six-capability scope. The cost is stated in
+calibrate the severity model, declined to hold the seven-capability scope. The cost is stated in
 section 6, call 9.
 
 **A lease and consumer-subscription clause library.** Follows from call 1. The flag library is

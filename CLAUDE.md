@@ -32,9 +32,12 @@ Read `PRD.md` before building. If it does not exist yet, ask me for it.
 2. Clauses that could hurt the reader, ranked by severity, each showing its
    exact source sentence.
 3. A drafted counter-offer for each flagged clause.
-4. A question box that answers only from the document.
-5. An editable list of the user's own red lines, which drives the analysis.
-6. A saved library of past documents.
+4. Missing protections: terms the document leaves out that would protect the
+   reader, each with a proposed insertion marked as not in the document. These
+   cite nothing, because they claim nothing about the text.
+5. A question box that answers only from the document.
+6. An editable list of the user's own red lines, which drives the analysis.
+7. A saved library of past documents.
 
 Excluded on purpose: payments, billing, OCR for scanned documents, and sharing a
 document between users. This version exists to prove the analysis can be
@@ -45,7 +48,7 @@ misread.
 ## Ask me first
 
 - Before adding any dependency.
-- Before building anything that is not one of the six capabilities above, however
+- Before building anything that is not one of the seven capabilities above, however
   obvious a next step it looks.
 
 ## Repo traps
