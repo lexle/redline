@@ -29,7 +29,9 @@ try {
   console.log(`${result.riskFlags.length} Risk flags, every one cited verbatim (${Date.now() - started} ms)\n`);
   for (const flag of result.riskFlags) {
     console.log(`#${flag.rank} [${flag.severityBand}] ${flag.title}`);
-    console.log(`   ${flag.explanation}`);
+    for (const claim of flag.claims) {
+      console.log(`   (${claim.tier}) ${claim.text}`);
+    }
     console.log(`   Source [${flag.source.start}, ${flag.source.end}): "${flag.source.text}"\n`);
   }
   process.exit(0);

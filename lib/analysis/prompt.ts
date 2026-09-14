@@ -1,7 +1,7 @@
 import type { JsonCompletionRequest, JsonSchema } from "../model/model-client.ts";
 import type { SentenceUnit } from "./segment.ts";
 import type { RedLine } from "./types.ts";
-import { SEVERITY_BANDS } from "./types.ts";
+import { PROVENANCE_TIERS, SEVERITY_BANDS } from "./types.ts";
 
 export const ANALYSIS_SCHEMA_NAME = "document_analysis";
 
@@ -19,14 +19,29 @@ export const ANALYSIS_SCHEMA: JsonSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["unitId", "quote", "title", "explanation", "severityBand", "rank"],
+        required: ["unitId", "quote", "title", "claims", "severityBand", "rank"],
         properties: {
           unitId: { type: "string", description: "The id of the one sentence unit this flag comes from, e.g. u12." },
           quote: { type: "string", description: "That unit's text, copied character for character." },
           title: { type: "string", description: "A short plain-English name for what the clause does." },
-          explanation: {
-            type: "string",
-            description: "One or two plain sentences on what this sentence does to the Signer, stating only what it says.",
+          claims: {
+            type: "array",
+            description:
+              "The plain-English explanation, one claim per item, each tagged with what it rests on. Start with at least one read-off claim.",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["tier", "text"],
+              properties: {
+                tier: {
+                  type: "string",
+                  enum: [...PROVENANCE_TIERS],
+                  description:
+                    "read-off: readable straight off the cited sentence. inference: how the clause would likely play out. needs-signer-facts: depends on the Signer's jurisdiction, industry or leverage.",
+                },
+                text: { type: "string", description: "One plain sentence. No hedging words for read-off claims." },
+              },
+            },
           },
           severityBand: { type: "string", enum: [...SEVERITY_BANDS] },
           rank: { type: "integer", description: "1 is the flag most likely to cost this Signer." },
@@ -50,9 +65,13 @@ Citing:
 - Each flag cites exactly one unit id, and "quote" must be that unit's text exactly as given, with every space and punctuation mark unchanged (decode the JSON escapes).
 - Never cite text that is not a unit. Never merge, trim or paraphrase a unit in "quote".
 
-Writing:
-- State only what the cited sentence says. Do not guess the Signer's jurisdiction, industry or leverage.
-- Explain; never advise. Do not tell the Signer what they should legally do, and do not present this as legal advice.
+Claims:
+- Explain each flag as a list of short claims, one sentence each, and tag every claim with what it rests on:
+  - "read-off": anyone can check it by reading the cited sentence alone, e.g. "You pay the client's costs to finish the project if you stop for any reason." Write it flat, with no "may", "might", "could" or "likely".
+  - "inference": it says how the clause would probably play out in practice, beyond the words themselves, e.g. "A delay you cause could run up costs far larger than your fee." Write it plainly; the product labels it as inference.
+  - "needs-signer-facts": whether it is true depends on facts about the Signer you do not have, such as their jurisdiction, industry or bargaining leverage, e.g. whether a court where they live would enforce the clause. Tag such a claim honestly. The product never shows it.
+- Every flag starts with at least one read-off claim.
+- Never tell the Signer what they should legally do: no "you should", "you must", "sign", "don't sign", "negotiate", "consult a lawyer" or similar. Explain what the sentence does; do not advise, and do not present this as legal advice.
 - If no sentence meets the test, return an empty riskFlags array. A clean document is a real result.`;
 
 export function buildAnalysisRequest(units: readonly SentenceUnit[], redLines: readonly RedLine[]): JsonCompletionRequest {

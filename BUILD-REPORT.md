@@ -46,7 +46,11 @@ Unattended build run started 2026-09-14. This file is updated as work lands.
 
 ## Not verified
 
-(filled in at the end)
+- **Real-model smoke, first attempts (after ticket 03):** three runs of `npm run smoke` all got
+  `429 Too Many Requests: Provider returned error`. The key itself is fine (OpenRouter reports a
+  $5 limit, $0 used, no key rate limit), so the 429 comes from Fireworks, and with
+  `allow_fallbacks: false` OpenRouter cannot route around it. Retried at the end of the run; see
+  below.
 
 ## First commands
 

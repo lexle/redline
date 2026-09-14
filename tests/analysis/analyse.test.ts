@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { analyse, CitationError } from "../../lib/analysis/analyse";
+import { analyse, AnalysisResponseError, CitationError } from "../../lib/analysis/analyse";
 import { segmentSentences } from "../../lib/analysis/segment";
-import { loadFixture, SidecarModelClient } from "../support/sidecar-model-client";
+import {
+  inferenceClaimFor,
+  loadFixture,
+  readOffClaimFor,
+  SidecarModelClient,
+} from "../support/sidecar-model-client";
 
 const adhesion = loadFixture("adhesion-contract");
 const clean = loadFixture("clean-agreement");
@@ -93,7 +98,7 @@ describe("analyse: a citation that does not match fails the whole analysis", () 
           unitId: doubleSpaced!.id,
           quote: doubleSpaced!.text.replace(/ {2,}/g, " "),
           title: "Collapsed",
-          explanation: "Quote with whitespace collapsed.",
+          claims: [{ tier: "read-off", text: "Quote with whitespace collapsed." }],
           severityBand: "medium",
           rank: 7,
         },
@@ -115,5 +120,105 @@ describe("analyse: a citation that does not match fails the whole analysis", () 
     expect(failure.failures.map((item) => item.reason).sort()).toEqual(["quote-mismatch", "unknown-unit"]);
     expect(failure.passedCount).toBe(plantedRiskFlags.length - 2);
     expect(failure.message).toContain("nope");
+  });
+});
+
+describe("analyse: every claim carries its provenance tier", () => {
+  const jurisdictionClaim = {
+    tier: "needs-signer-facts" as const,
+    text: "A court in California would refuse to enforce this non-compete against you.",
+  };
+  const industryClaim = {
+    tier: "needs-signer-facts" as const,
+    text: "In software consulting, third-party claims like these are rare, so this is unlikely to matter to you.",
+  };
+  const flagFor = (id: string) => plantedRiskFlags.find((clause) => clause.id === id)!;
+
+  it("withholds a claim that depends on the Signer's jurisdiction or industry, leaving it out of the result entirely", async () => {
+    const client = new SidecarModelClient(adhesion, {
+      extraClaims: { "RF-4": [jurisdictionClaim], "RF-2": [industryClaim] },
+    });
+    const result = await analyse(adhesion.text, [], client);
+
+    const serialised = JSON.stringify(result);
+    expect(serialised).not.toContain(jurisdictionClaim.text);
+    expect(serialised).not.toContain(industryClaim.text);
+    expect(serialised).not.toContain("needs-signer-facts");
+
+    // Both flags still stand on the claims that remain, still citing their sentence verbatim.
+    for (const id of ["RF-4", "RF-2"]) {
+      const clause = flagFor(id);
+      const flag = result.riskFlags.find((candidate) => candidate.source.text === clause.sentence);
+      expect(flag, `${id} should still be returned`).toBeDefined();
+      expect(flag!.claims).toEqual([readOffClaimFor(clause), inferenceClaimFor(clause)]);
+      expect(adhesion.text.slice(flag!.source.start, flag!.source.end)).toBe(clause.sentence);
+    }
+    expect(result.riskFlags).toHaveLength(plantedRiskFlags.length);
+  });
+
+  it("returns an inference claim marked as inference, and a read-off claim marked as read-off", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
+
+    result.riskFlags.forEach((flag, position) => {
+      const clause = plantedRiskFlags[position];
+      expect(flag.source.text).toBe(clause.sentence);
+      expect(flag.claims).toEqual([
+        { tier: "read-off", text: readOffClaimFor(clause).text },
+        { tier: "inference", text: clause.why },
+      ]);
+    });
+  });
+
+  it("keeps the model's order of claims when withheld ones sit between them", async () => {
+    const clause = flagFor("RF-1");
+    const extraInference = { tier: "inference" as const, text: "A long delay could cost more than the whole fee." };
+    const client = new SidecarModelClient(adhesion, {
+      tamper: (payload) => {
+        const flag = payload.riskFlags.find((candidate) => candidate.quote === clause.sentence)!;
+        flag.claims = [flag.claims[0], jurisdictionClaim, extraInference, industryClaim, flag.claims[1]];
+        return payload;
+      },
+    });
+    const result = await analyse(adhesion.text, [], client);
+
+    expect(result.riskFlags[0].source.text).toBe(clause.sentence);
+    expect(result.riskFlags[0].claims).toEqual([readOffClaimFor(clause), extraInference, inferenceClaimFor(clause)]);
+  });
+
+  it("fails the analysis, naming the flag, when every claim a flag makes is withheld", async () => {
+    const clause = flagFor("RF-3");
+    const client = new SidecarModelClient(adhesion, {
+      tamper: (payload) => {
+        const flag = payload.riskFlags.find((candidate) => candidate.quote === clause.sentence)!;
+        flag.claims = [jurisdictionClaim, industryClaim];
+        return payload;
+      },
+    });
+    const unit = segmentSentences(adhesion.text).find((candidate) => candidate.text === clause.sentence)!;
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain(`unit ${unit.id}`);
+  });
+
+  it("rejects a claim whose tier is not one of the three", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      (payload.riskFlags[0].claims[0] as { tier: string }).tier = "confident";
+      return payload;
+    });
+
+    await expect(analyse(adhesion.text, [], client)).rejects.toBeInstanceOf(AnalysisResponseError);
+  });
+
+  it("still fails on a bad citation even when the flag's claims are all well tiered", async () => {
+    const client = new SidecarModelClient(adhesion, {
+      extraClaims: { "RF-5": [jurisdictionClaim] },
+      tamper: (payload) => {
+        payload.riskFlags[1].quote = payload.riskFlags[1].quote.slice(1);
+        return payload;
+      },
+    });
+
+    await expect(analyse(adhesion.text, [], client)).rejects.toBeInstanceOf(CitationError);
   });
 });

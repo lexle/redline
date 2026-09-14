@@ -165,7 +165,19 @@ function RiskFlagList({ fileName, result }: { fileName: string; result: Analysis
               <div className={styles.flagBody}>
                 <h3 className={styles.flagTitle}>{flag.title}</h3>
                 <p className={styles.severity}>{SEVERITY_COPY[flag.severityBand]}</p>
-                <p className={styles.explanation}>{flag.explanation}</p>
+                <ul className={styles.claims}>
+                  {flag.claims.map((claim, index) =>
+                    claim.tier === "inference" ? (
+                      <li key={index} className={styles.claim} data-tier="inference">
+                        <span className={styles.inferenceLabel}>Inference</span> {claim.text}
+                      </li>
+                    ) : (
+                      <li key={index} className={styles.claim} data-tier="read-off">
+                        {claim.text}
+                      </li>
+                    ),
+                  )}
+                </ul>
                 <blockquote className={styles.quote}>
                   <p>“{flag.source.text}”</p>
                 </blockquote>

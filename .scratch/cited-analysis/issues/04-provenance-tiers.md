@@ -14,17 +14,19 @@ analysis and the display. Every finding type built after this ticket carries a t
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** done (2026-09-14)
 
 Interpretation note: the spec's "Refusal holds" test talks about questions, but the question box is
 out of scope for this spec and the analysis takes no question. Here it means that claims depending on
 facts about the Signer are withheld. Refusal in the question box belongs to the capability-5 spec.
 
-- [ ] Every claim a Risk flag makes carries a tier: read off the sentence, inference, or withheld.
-- [ ] The display labels inference as inference. Read-off claims carry no hedge.
-- [ ] A claim tagged as needing facts about the Signer is not shown, and no hedged speculation replaces
-      it. The Risk flag itself still shows if its read-off claims stand.
-- [ ] Nothing in the output tells the Signer what they should legally do.
-- [ ] Tests at the analysis seam, synthetic client: a claim that depends on the Signer's jurisdiction
+- [x] Every claim a Risk flag makes carries a tier: read off the sentence, inference, or withheld.
+- [x] The display labels inference as inference. Read-off claims carry no hedge.
+- [x] A claim tagged as needing facts about the Signer is not shown, and no hedged speculation replaces
+      it. The Risk flag itself still shows if its read-off claims stand. (A flag whose every claim is
+      withheld fails the analysis rather than rendering empty.)
+- [x] Nothing in the output tells the Signer what they should legally do. (Enforced in the prompt;
+      only a real-model run can show whether the model obeys.)
+- [x] Tests at the analysis seam, synthetic client: a claim that depends on the Signer's jurisdiction
       or industry is absent from the result, and an inference-tier claim comes back marked as
       inference.

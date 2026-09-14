@@ -2,8 +2,8 @@ import type { ModelClient } from "../model/model-client.ts";
 import { buildAnalysisRequest } from "./prompt.ts";
 import { segmentSentences } from "./segment.ts";
 import type { SentenceUnit } from "./segment.ts";
-import type { AnalysisResult, RedLine, RiskFlag, SeverityBand } from "./types.ts";
-import { SEVERITY_BANDS } from "./types.ts";
+import type { AnalysisResult, Claim, ProvenanceTier, RedLine, RiskFlag, SeverityBand } from "./types.ts";
+import { PROVENANCE_TIERS, SEVERITY_BANDS } from "./types.ts";
 
 export interface FailedCitation {
   /** Position of the finding in the model's response. */
@@ -51,11 +51,16 @@ export class AnalysisResponseError extends Error {
   }
 }
 
+interface RawClaim {
+  tier: ProvenanceTier;
+  text: string;
+}
+
 interface RawRiskFlag {
   unitId: string;
   quote: string;
   title: string;
-  explanation: string;
+  claims: RawClaim[];
   severityBand: SeverityBand;
   rank: number;
 }
@@ -94,24 +99,49 @@ export async function analyse(
     throw new CitationError(failures, rawFlags.length);
   }
 
+  // Claims that need facts about the Signer are withheld here, so they never reach the result and
+  // no display can show them (ADR-0007).
+  //
+  // A Risk flag whose every claim is withheld fails the whole analysis with AnalysisResponseError.
+  // It is not dropped: a dropped flag hides a sentence that met the danger test, which is an
+  // invisible failure. It is not returned with no claims either: a flag nothing can be said about
+  // from its own sentence is not grounded in that sentence. The prompt requires every flag to open
+  // with a read-off claim, so this means the model broke that rule.
+  const withClaims = cited.map(({ raw, unit }, index) => {
+    const shown = raw.claims.filter(isShown);
+    return { raw, unit, index, shown };
+  });
+  const emptied = withClaims.filter((flag) => flag.shown.length === 0);
+  if (emptied.length > 0) {
+    throw new AnalysisResponseError(
+      `${emptied.length} Risk ${emptied.length === 1 ? "flag has" : "flags have"} no claim left once claims needing facts about the Signer are withheld: ` +
+        emptied.map((flag) => `#${flag.index} (unit ${flag.raw.unitId})`).join(", ") +
+        ".",
+    );
+  }
+
   const bandOrder = (band: SeverityBand) => SEVERITY_BANDS.indexOf(band);
-  cited.sort(
+  withClaims.sort(
     (a, b) =>
       bandOrder(a.raw.severityBand) - bandOrder(b.raw.severityBand) ||
       a.raw.rank - b.raw.rank ||
       a.unit.start - b.unit.start,
   );
 
-  const riskFlags: RiskFlag[] = cited.map(({ raw, unit }, position) => ({
+  const riskFlags: RiskFlag[] = withClaims.map(({ raw, unit, shown }, position) => ({
     kind: "risk-flag",
     rank: position + 1,
     severityBand: raw.severityBand,
     title: raw.title,
-    explanation: raw.explanation,
+    claims: shown as [Claim, ...Claim[]],
     source: { start: unit.start, end: unit.end, text: documentText.slice(unit.start, unit.end) },
   }));
 
   return { riskFlags };
+}
+
+function isShown(claim: RawClaim): claim is Claim {
+  return claim.tier !== "needs-signer-facts";
 }
 
 function readRiskFlags(response: unknown): RawRiskFlag[] {
@@ -121,8 +151,17 @@ function readRiskFlags(response: unknown): RawRiskFlag[] {
   return (response as { riskFlags: unknown[] }).riskFlags.map((item, index) => {
     const flag = item as Partial<Record<keyof RawRiskFlag, unknown>>;
     const problems: string[] = [];
-    for (const key of ["unitId", "quote", "title", "explanation"] as const) {
+    for (const key of ["unitId", "quote", "title"] as const) {
       if (typeof flag?.[key] !== "string") problems.push(`${key} is not a string`);
+    }
+    if (!Array.isArray(flag?.claims)) {
+      problems.push("claims is not a list");
+    } else {
+      flag.claims.forEach((claim: unknown, claimIndex: number) => {
+        const { tier, text } = (claim ?? {}) as { tier?: unknown; text?: unknown };
+        if (!PROVENANCE_TIERS.includes(tier as ProvenanceTier)) problems.push(`claim ${claimIndex} has no known tier`);
+        if (typeof text !== "string" || text.trim() === "") problems.push(`claim ${claimIndex} has no text`);
+      });
     }
     if (!SEVERITY_BANDS.includes(flag?.severityBand as SeverityBand)) problems.push("severityBand is not high or medium");
     if (typeof flag?.rank !== "number" || !Number.isFinite(flag.rank)) problems.push("rank is not a number");
