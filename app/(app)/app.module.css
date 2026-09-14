@@ -130,6 +130,86 @@
   outline-color: var(--focus-on-paper);
 }
 
+/* Paste */
+
+.paste {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid rgb(255 255 255 / 0.12);
+}
+
+.pasteLabel {
+  color: var(--desk-ink);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.pasteInput {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 160px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.pasteInput:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.pasteInput:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pasteError {
+  margin: 8px 0 0;
+  color: var(--desk-ink);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.pasteButton {
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 180ms var(--ease), opacity 180ms var(--ease);
+}
+
+.pasteButton:hover:not(:disabled) {
+  background: var(--rule);
+}
+
+.pasteButton:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.pasteButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Outcome states */
 
 .quiet {
@@ -829,6 +909,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .fileButton,
+  .pasteButton,
   .copyButton,
   .sourceToggle,
   .unrankedSummary,

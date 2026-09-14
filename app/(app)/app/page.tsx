@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { ChangeEvent } from "react";
-import type { AnalyseFailureCode, AnalyseRequestBody, AnalyseResponseBody } from "../../../lib/analysis/api";
+import type { ChangeEvent, FormEvent } from "react";
+import type { AnalyseFailureCode, AnalyseResponseBody } from "../../../lib/analysis/api";
+import { buildAnalyseRequestBody, isBlankDocument } from "../../../lib/analysis/request";
 import type { HarmCheck } from "../../../lib/analysis/checks";
 import type {
   AnalysisResult,
@@ -100,13 +101,22 @@ const STATED_COPY: Record<ProtectionKind, string> = {
   "scope-revision-limits": "a limit on revisions",
 };
 
+function capitalise(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 function joinList(items: readonly string[], conjunction = "and"): string {
   if (items.length <= 1) return items.join("");
   return `${items.slice(0, -1).join(", ")} ${conjunction} ${items[items.length - 1]}`;
 }
 
+/** How the result screen names a Document the Signer pasted rather than read from a file. */
+export const PASTED_DOCUMENT_NAME = "your pasted document";
+
 export default function AnalysePage() {
   const [screen, setScreen] = useState<Screen>({ state: "idle" });
+  const [pasted, setPasted] = useState("");
+  const [pasteRefused, setPasteRefused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const busy = screen.state === "extracting" || screen.state === "analysing";
 
@@ -129,19 +139,34 @@ export default function AnalysePage() {
       setScreen({ state: "failed", fileName, reason: "unreadable-file" });
       return;
     }
-    if (text.trim() === "") {
+    if (isBlankDocument(text)) {
       setScreen({ state: "failed", fileName, reason: "empty-file" });
       return;
     }
+    setPasteRefused(false);
+    await runAnalysis(text, fileName);
+  }
 
+  async function handlePaste(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    // The textarea's value is sent exactly as the browser hands it over.
+    const text = pasted;
+    if (isBlankDocument(text)) {
+      setPasteRefused(true);
+      return;
+    }
+    setPasteRefused(false);
+    await runAnalysis(text, PASTED_DOCUMENT_NAME);
+  }
+
+  async function runAnalysis(text: string, fileName: string) {
     setScreen({ state: "analysing", fileName });
-    const body: AnalyseRequestBody = { text, redLines: [] };
     let response: Response;
     try {
       response = await fetch("/api/analyse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: buildAnalyseRequestBody(text, []),
       });
     } catch {
       setScreen({ state: "failed", fileName, reason: "offline" });
@@ -170,7 +195,7 @@ export default function AnalysePage() {
           Check a document
         </h1>
         <p className={styles.lede}>
-          Pick a .txt file. Your browser reads it here and sends Redline only the text.
+          Pick a .txt file or paste the text. Your browser sends Redline only the text.
         </p>
         <input
           ref={inputRef}
@@ -184,6 +209,34 @@ export default function AnalysePage() {
         <label htmlFor="document-file" className={styles.fileButton} data-disabled={busy || undefined}>
           {screen.state === "idle" ? "Choose a .txt file" : "Choose another file"}
         </label>
+
+        <form className={styles.paste} onSubmit={handlePaste} noValidate>
+          <label htmlFor="document-paste" className={styles.pasteLabel}>
+            Or paste the text
+          </label>
+          <textarea
+            id="document-paste"
+            className={styles.pasteInput}
+            value={pasted}
+            onChange={(event) => {
+              setPasted(event.target.value);
+              if (pasteRefused) setPasteRefused(false);
+            }}
+            rows={8}
+            spellCheck={false}
+            disabled={busy}
+            aria-invalid={pasteRefused || undefined}
+            aria-describedby={pasteRefused ? "document-paste-error" : undefined}
+          />
+          {pasteRefused && (
+            <p id="document-paste-error" className={styles.pasteError} role="alert">
+              There's no text to check. Paste the document first.
+            </p>
+          )}
+          <button type="submit" className={styles.pasteButton} disabled={busy}>
+            Check this text
+          </button>
+        </form>
       </section>
 
       {screen.state === "result" ? (
@@ -429,7 +482,7 @@ function MissingProtectionList({ fileName, entries }: { fileName: string; entrie
       <h2 className={styles.listHeading}>
         {count === 0
           ? `No missing protections in ${fileName}`
-          : `${fileName} leaves out ${count} ${count === 1 ? "protection" : "protections"}`}
+          : `${capitalise(fileName)} leaves out ${count} ${count === 1 ? "protection" : "protections"}`}
       </h2>
       {count === 0 ? (
         <p className={styles.quiet}>
