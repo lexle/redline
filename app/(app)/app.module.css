@@ -8,7 +8,7 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  max-width: 1080px;
+  max-width: 1240px;
   margin-inline: auto;
   padding-inline: clamp(16px, 4vw, 48px);
 }
@@ -563,6 +563,256 @@
   color: var(--desk-ink);
 }
 
+/* The result: the Document as a page beside the analysis rail. The page is its own scroller, held
+   in view on desktop while the rail scrolls with the window. It is set at reading size (Tinos
+   1.0625rem, lh 1.6), not the landing page's 12px picture scale, because the Signer reads it. */
+
+.workspace[data-result] {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 40px;
+}
+
+.reader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  gap: 40px;
+  align-items: start;
+}
+
+.documentColumn {
+  position: sticky;
+  top: 16px;
+  min-width: 0;
+}
+
+.rail {
+  min-width: 0;
+}
+
+.pageScroller {
+  max-height: calc(100vh - 72px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Room for the paper lift on the left and bottom, and for tabs sticking out on the right. */
+  padding: 4px 52px 56px 20px;
+}
+
+.docPage {
+  position: relative;
+  padding: clamp(24px, 7%, 64px) clamp(20px, 8%, 72px);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow:
+    0 1px 1px rgb(0 0 0 / 0.15),
+    0 14px 30px -10px rgb(0 0 0 / 0.5),
+    0 40px 70px -30px rgb(0 0 0 / 0.45);
+}
+
+.docText {
+  font-family: var(--font-doc);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.docText ::selection {
+  background: rgb(108 207 246 / 0.38);
+}
+
+.docMark {
+  --mark-tape: var(--tape);
+  color: inherit;
+  background: linear-gradient(var(--mark-tape), var(--mark-tape)) no-repeat 0 0 / 0% 100%;
+  transition:
+    background-size 240ms var(--ease),
+    text-decoration-color 240ms var(--ease);
+}
+
+.docMark[data-flagged] {
+  text-decoration: underline 1.5px rgb(209 0 111 / 0.6);
+  text-underline-offset: 3px;
+}
+
+.docMark[data-pulled] {
+  background-size: 100% 100%;
+}
+
+.docMark[data-pulled="flag"] {
+  text-decoration-color: transparent;
+}
+
+/* Worth a look and Multiplier notes: half-strength tape, no tab. */
+.docMark[data-pulled="quiet"] {
+  --mark-tape: rgb(236 26 140 / 0.12);
+}
+
+.pageTab {
+  position: absolute;
+  top: var(--y);
+  left: calc(100% - 16px);
+  display: flex;
+  width: 54px;
+  height: 24px;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: transform 240ms var(--ease);
+}
+
+.pageTab:not([data-pulled]):hover {
+  transform: translate(4px, -50%);
+}
+
+.pageTab:not([data-pulled]):active {
+  transform: translate(7px, -50%);
+}
+
+.pageTab[data-pulled] {
+  transform: translate(10px, -50%);
+}
+
+.pageTabClear {
+  width: 16px;
+  background: var(--tape-clear);
+}
+
+.pageTabTip {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  background: var(--flag);
+  color: #ffffff;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 800;
+  font-stretch: 110%;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  transition: box-shadow 240ms var(--ease);
+}
+
+/* The numeral is generated, so the page's text stays exactly the stored text. */
+.pageTabTip::after {
+  content: attr(data-rank);
+}
+
+.pageTab:hover .pageTabTip {
+  box-shadow: 0 2px 5px rgb(0 0 0 / 0.34);
+}
+
+.pageTab[data-pulled] .pageTabTip {
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.38);
+}
+
+/* The ranked card's title is the keyboard and screen-reader control for its flag. */
+.flag {
+  cursor: pointer;
+}
+
+.flagButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.flagButton:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+/* A pulled card turns to paper. Desk tokens are re-pointed at paper ones inside it. */
+.flag[data-pulled],
+.flag[data-pulled]:hover {
+  --desk-ink: var(--ink);
+  --desk-ink-2: var(--ink-2);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.flag[data-pulled] .flagButton:focus-visible,
+.flag[data-pulled] .copyButton:focus-visible {
+  outline-color: var(--focus-on-paper);
+}
+
+.flag[data-pulled] .quote {
+  border-left-color: var(--rule);
+}
+
+.flag[data-pulled] .counterOffer {
+  border-color: var(--rule);
+}
+
+.flag[data-pulled] .copyButton,
+.flag[data-pulled] .inferenceLabel {
+  border-color: rgb(22 25 27 / 0.3);
+}
+
+.flag[data-pulled] .copyButton:hover {
+  background: rgb(22 25 27 / 0.06);
+}
+
+.flag[data-pulled] .copyButton[data-state="copied"] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 960px) {
+  .reader {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+
+  .documentColumn {
+    position: static;
+  }
+
+  .pageScroller {
+    max-height: 70vh;
+  }
+}
+
+@media (max-width: 760px) {
+  .pageScroller {
+    padding: 4px 36px 40px 8px;
+  }
+
+  .docText {
+    font-size: 1rem;
+  }
+
+  .pageTab {
+    left: calc(100% - 12px);
+    width: 42px;
+  }
+
+  .pageTab[data-pulled] {
+    transform: translate(4px, -50%);
+  }
+
+  .pageTab:not([data-pulled]):hover,
+  .pageTab:not([data-pulled]):active {
+    transform: translate(2px, -50%);
+  }
+
+  .pageTabClear {
+    width: 12px;
+  }
+}
+
 @media (max-width: 760px) {
   .checkItem {
     grid-template-columns: minmax(0, 1fr);
@@ -582,7 +832,10 @@
   .copyButton,
   .sourceToggle,
   .unrankedSummary,
-  .flag {
+  .flag,
+  .docMark,
+  .pageTab,
+  .pageTabTip {
     transition: none;
   }
 

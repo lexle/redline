@@ -21,6 +21,13 @@ import type {
   WorthALook,
 } from "../../../lib/analysis/types";
 import styles from "../app.module.css";
+import {
+  DOCUMENT_PAGE_ID,
+  DocumentView,
+  multiplierNoteMarkId,
+  riskFlagMarkId,
+  worthALookMarkId,
+} from "./DocumentView";
 
 type FailureReason = AnalyseFailureCode | "not-txt" | "empty-file" | "unreadable-file" | "offline";
 
@@ -28,7 +35,7 @@ type Screen =
   | { state: "idle" }
   | { state: "extracting"; fileName: string }
   | { state: "analysing"; fileName: string }
-  | { state: "result"; fileName: string; result: AnalysisResult }
+  | { state: "result"; fileName: string; text: string; result: AnalysisResult }
   | { state: "failed"; fileName: string | null; reason: FailureReason };
 
 const FAILURE_COPY: Record<FailureReason, string> = {
@@ -149,7 +156,7 @@ export default function AnalysePage() {
       return;
     }
     if ("result" in payload && payload.ok && response.ok) {
-      setScreen({ state: "result", fileName, result: payload.result });
+      setScreen({ state: "result", fileName, text, result: payload.result });
     } else {
       const code = "code" in payload && payload.code in FAILURE_COPY ? payload.code : "unexpected";
       setScreen({ state: "failed", fileName, reason: code });
@@ -157,7 +164,7 @@ export default function AnalysePage() {
   }
 
   return (
-    <div className={styles.workspace}>
+    <div className={styles.workspace} data-result={screen.state === "result" || undefined}>
       <section className={styles.intake} aria-labelledby="intake-heading">
         <h1 id="intake-heading" className={styles.heading}>
           Check a document
@@ -179,6 +186,9 @@ export default function AnalysePage() {
         </label>
       </section>
 
+      {screen.state === "result" ? (
+        <ResultView fileName={screen.fileName} text={screen.text} result={screen.result} />
+      ) : (
       <section className={styles.outcome} aria-live="polite">
         {screen.state === "idle" && <p className={styles.quiet}>No document yet.</p>}
 
@@ -200,33 +210,64 @@ export default function AnalysePage() {
             </button>
           </div>
         )}
-
-        {screen.state === "result" && (
-          <>
-            <SummarySection fileName={screen.fileName} sentences={screen.result.summary} />
-            {screen.result.nothingFound ? (
-              <CleanResult fileName={screen.fileName} checklist={screen.result.checklist} />
-            ) : (
-              <RiskFlagList fileName={screen.fileName} result={screen.result} />
-            )}
-            <MissingProtectionList fileName={screen.fileName} entries={screen.result.missingProtections} />
-            <ChecklistSection checklist={screen.result.checklist} />
-            <UnrankedSection
-              heading="Worth a look"
-              explainer="These clauses are one-sided or unusual, but each has a limit and a way out, so they aren’t ranked with the risk flags."
-              empty="Nothing for Worth a look in this document."
-              entries={screen.result.worthALook}
-            />
-            <NiceToHaveSection entries={screen.result.niceToHave} />
-            <UnrankedSection
-              heading="Multiplier notes"
-              explainer="These clauses make things harder for you if something else in the agreement goes wrong. On their own they cost you nothing, so they aren’t ranked with the risk flags."
-              empty="No multiplier notes in this document."
-              entries={screen.result.multiplierNotes}
-            />
-          </>
-        )}
       </section>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The result: the stored Document as a page beside the analysis rail. Exactly one finding is pulled
+ * at a time, and Risk flag 1 starts pulled (DESIGN.md, The One Pulled Flag Rule). Selecting a
+ * finding in the rail or a tab on the page pulls it and scrolls the page to its Source sentence.
+ */
+function ResultView({ fileName, text, result }: { fileName: string; text: string; result: AnalysisResult }) {
+  const firstFlag = result.riskFlags.find((flag) => flag.rank === 1) ?? result.riskFlags[0];
+  const [selection, setSelection] = useState<{ id: string | null; request: number }>({
+    id: firstFlag ? riskFlagMarkId(firstFlag) : null,
+    request: 0,
+  });
+  const pull = (id: string) => setSelection((current) => ({ id, request: current.request + 1 }));
+
+  return (
+    <div className={styles.reader}>
+      <DocumentView
+        fileName={fileName}
+        text={text}
+        result={result}
+        pulled={selection.id}
+        scrollRequest={selection.request}
+        onPull={pull}
+      />
+      <div className={styles.rail}>
+        <SummarySection fileName={fileName} sentences={result.summary} />
+        {result.nothingFound ? (
+          <CleanResult fileName={fileName} checklist={result.checklist} />
+        ) : (
+          <RiskFlagList fileName={fileName} result={result} pulled={selection.id} onPull={pull} />
+        )}
+        <MissingProtectionList fileName={fileName} entries={result.missingProtections} />
+        <ChecklistSection checklist={result.checklist} />
+        <UnrankedSection
+          heading="Worth a look"
+          explainer="These clauses are one-sided or unusual, but each has a limit and a way out, so they aren’t ranked with the risk flags."
+          empty="Nothing for Worth a look in this document."
+          entries={result.worthALook}
+          markId={worthALookMarkId}
+          pulled={selection.id}
+          onPull={pull}
+        />
+        <NiceToHaveSection entries={result.niceToHave} />
+        <UnrankedSection
+          heading="Multiplier notes"
+          explainer="These clauses make things harder for you if something else in the agreement goes wrong. On their own they cost you nothing, so they aren’t ranked with the risk flags."
+          empty="No multiplier notes in this document."
+          entries={result.multiplierNotes}
+          markId={multiplierNoteMarkId}
+          pulled={selection.id}
+          onPull={pull}
+        />
+      </div>
     </div>
   );
 }
@@ -317,7 +358,17 @@ function CleanResult({ fileName, checklist }: { fileName: string; checklist: rea
   );
 }
 
-function RiskFlagList({ fileName, result }: { fileName: string; result: AnalysisResult }) {
+function RiskFlagList({
+  fileName,
+  result,
+  pulled,
+  onPull,
+}: {
+  fileName: string;
+  result: AnalysisResult;
+  pulled: string | null;
+  onPull: (id: string) => void;
+}) {
   const count = result.riskFlags.length;
   return (
     <div>
@@ -325,13 +376,31 @@ function RiskFlagList({ fileName, result }: { fileName: string; result: Analysis
         {`${count} risk ${count === 1 ? "flag" : "flags"} in ${fileName}, most likely to cost you first`}
       </h2>
       <ol className={styles.flags}>
-          {result.riskFlags.map((flag) => (
-            <li key={`${flag.rank}-${flag.source.start}`} className={styles.flag}>
-              <span className={styles.tip} aria-label={`Rank ${flag.rank}`}>
+          {result.riskFlags.map((flag) => {
+            const id = riskFlagMarkId(flag);
+            const isPulled = id === pulled;
+            return (
+            <li
+              key={`${flag.rank}-${flag.source.start}`}
+              className={styles.flag}
+              data-pulled={isPulled || undefined}
+              onClick={() => onPull(id)}
+            >
+              <span className={styles.tip} aria-hidden="true">
                 {flag.rank}
               </span>
               <div className={styles.flagBody}>
-                <h3 className={styles.flagTitle}>{flag.title}</h3>
+                <h3 className={styles.flagTitle}>
+                  <button
+                    type="button"
+                    className={styles.flagButton}
+                    aria-pressed={isPulled}
+                    aria-controls={DOCUMENT_PAGE_ID}
+                  >
+                    <span className={styles.visuallyHidden}>Risk flag {flag.rank}: </span>
+                    {flag.title}
+                  </button>
+                </h3>
                 <p className={styles.severity}>{SEVERITY_COPY[flag.severityBand]}</p>
                 <ClaimList claims={flag.claims} />
                 <blockquote className={styles.quote}>
@@ -341,7 +410,8 @@ function RiskFlagList({ fileName, result }: { fileName: string; result: Analysis
                 <CounterOffer text={flag.counterOffer} idSuffix={String(flag.rank)} heading="Counter-offer" />
               </div>
             </li>
-          ))}
+            );
+          })}
       </ol>
     </div>
   );
@@ -504,11 +574,17 @@ function UnrankedSection({
   explainer,
   empty,
   entries,
+  markId,
+  pulled,
+  onPull,
 }: {
   heading: string;
   explainer: string;
   empty: string;
   entries: readonly (WorthALook | MultiplierNote)[];
+  markId: (index: number) => string;
+  pulled: string | null;
+  onPull: (id: string) => void;
 }) {
   if (entries.length === 0) {
     return <p className={`${styles.quiet} ${styles.unrankedEmpty}`}>{empty}</p>;
@@ -521,14 +597,23 @@ function UnrankedSection({
       </summary>
       <p className={styles.meta}>{explainer}</p>
       <ul className={styles.unrankedList}>
-        {entries.map((entry) => (
-          <li key={entry.source.start} className={styles.unrankedEntry}>
+        {entries.map((entry, index) => (
+          <li key={`${index}-${entry.source.start}`} className={styles.unrankedEntry}>
             <h3 className={styles.flagTitle}>{entry.title}</h3>
             <ClaimList claims={entry.claims} />
             <blockquote className={styles.quote}>
               <p>“{entry.source.text}”</p>
             </blockquote>
             <p className={styles.meta}>Quoted word for word from your document</p>
+            <button
+              type="button"
+              className={styles.sourceToggle}
+              aria-pressed={markId(index) === pulled}
+              aria-controls={DOCUMENT_PAGE_ID}
+              onClick={() => onPull(markId(index))}
+            >
+              Show it in the document
+            </button>
           </li>
         ))}
       </ul>
