@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import type { AnalyseFailureCode, AnalyseResponseBody } from "../../../lib/analysis/api";
 import { buildAnalyseRequestBody, isBlankDocument } from "../../../lib/analysis/request";
+import { countParts } from "../../../lib/analysis/parts";
 import { ExtractionError, documentFormat, extractText } from "../../../lib/extraction/extract-text";
 import type { Extraction, ExtractionErrorCode } from "../../../lib/extraction/extract-text";
 import type { HarmCheck } from "../../../lib/analysis/checks";
@@ -38,7 +39,7 @@ type FailureReason = AnalyseFailureCode | ExtractionErrorCode | "empty-file" | "
 type Screen =
   | { state: "idle" }
   | { state: "extracting"; fileName: string }
-  | { state: "analysing"; fileName: string }
+  | { state: "analysing"; fileName: string; parts: number }
   | { state: "scan"; fileName: string; format: "pdf" | "docx" }
   | { state: "result"; fileName: string; text: string; result: AnalysisResult }
   | { state: "failed"; fileName: string | null; reason: FailureReason };
@@ -174,7 +175,7 @@ export default function AnalysePage() {
   }
 
   async function runAnalysis(text: string, fileName: string) {
-    setScreen({ state: "analysing", fileName });
+    setScreen({ state: "analysing", fileName, parts: countParts(text) });
     let response: Response;
     try {
       response = await fetch("/api/analyse", {
@@ -264,7 +265,9 @@ export default function AnalysePage() {
             <span className={styles.pulse} aria-hidden="true" />
             {screen.state === "extracting"
               ? `Reading ${screen.fileName}…`
-              : `Checking ${screen.fileName}. This can take a minute.`}
+              : screen.parts > 1
+                ? `Checking ${screen.fileName}. It's long, so Redline reads it in ${screen.parts} parts and shows nothing until every part is done. This can take a few minutes.`
+                : `Checking ${screen.fileName}. This can take a minute.`}
           </p>
         )}
 

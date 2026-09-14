@@ -1,5 +1,6 @@
 import type { JsonCompletionRequest, JsonSchema } from "../model/model-client.ts";
 import type { SentenceUnit } from "./segment.ts";
+import { unitLine } from "./parts.ts";
 import type { RedLine } from "./types.ts";
 import { NICE_TO_HAVE_KINDS, PROTECTION_KINDS, PROVENANCE_TIERS, SEVERITY_BANDS } from "./types.ts";
 import { CHECK_DESCRIPTIONS, CHECK_IDS, CHECK_OUTCOMES, HARM_CHECKS, RISK_FLAG_CHECKS } from "./checks.ts";
@@ -304,7 +305,22 @@ ${PROTECTION_KINDS.map((check) => `  - "${check}" (protection check): ${CHECK_DE
 - Return an empty missingProtections array when the document addresses all five.
 - If no sentence meets the test, return an empty riskFlags array. A clean document is a real result. Likewise, return an empty worthALook array when no bounded one-sided or unusual clause is present, and an empty multiplierNotes array when the document has no arbitration, class-action waiver or unilateral amendment clause.`;
 
-export function buildAnalysisRequest(units: readonly SentenceUnit[], redLines: readonly RedLine[]): JsonCompletionRequest {
+/** Which part of a Document split for the model the request carries. */
+export interface PartPosition {
+  /** Zero-based. */
+  index: number;
+  count: number;
+}
+
+/**
+ * Builds the request for a whole Document, or for one part of a long one. A part's request says so
+ * in the user message only; the system prompt is the same for every call.
+ */
+export function buildAnalysisRequest(
+  units: readonly SentenceUnit[],
+  redLines: readonly RedLine[],
+  part?: PartPosition,
+): JsonCompletionRequest {
   const redLineSection =
     redLines.length === 0
       ? "The Signer has not stated any red lines."
@@ -313,11 +329,15 @@ export function buildAnalysisRequest(units: readonly SentenceUnit[], redLines: r
           ...redLines.map((line, index) => `${index + 1}. ${JSON.stringify(line.text)}`),
         ].join("\n");
 
-  const unitLines = units.map((unit) => `[${unit.id}] ${JSON.stringify(unit.text)}`).join("\n");
+  const unitLines = units.map(unitLine).join("\n");
+  const partSection =
+    part === undefined || part.count <= 1
+      ? ""
+      : `This Document is too long for one request, so it is split into ${part.count} parts. Below is part ${part.index + 1} of ${part.count}; the other parts are analysed separately and the results are combined. Unit ids count from the start of the whole Document. The first units of a part may repeat the last units of the part before. Cite only units shown below. Summarise only what this part says. Report a protection as missing when no unit shown below addresses it; the other parts are checked for it before anything is shown.\n\n`;
 
   return {
     system: SYSTEM_PROMPT,
-    user: `${redLineSection}\n\nDocument sentence units:\n${unitLines}`,
+    user: `${redLineSection}\n\n${partSection}Document sentence units:\n${unitLines}`,
     schemaName: ANALYSIS_SCHEMA_NAME,
     schema: ANALYSIS_SCHEMA,
   };

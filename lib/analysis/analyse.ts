@@ -10,6 +10,8 @@ import {
   RISK_FLAG_CHECKS,
 } from "./checks.ts";
 import { buildAnalysisRequest } from "./prompt.ts";
+import { DEFAULT_PART_BUDGET, splitIntoParts } from "./parts.ts";
+import type { DocumentPart } from "./parts.ts";
 import { segmentSentences } from "./segment.ts";
 import type { SentenceUnit } from "./segment.ts";
 import type {
@@ -156,37 +158,126 @@ const FINDING_NAMES: Record<ExclusiveFindingType, { one: string; many: string; l
   "multiplier-note": { one: "Multiplier note", many: "Multiplier notes", label: "a Multiplier note" },
 };
 
+/**
+ * How many parts of a long Document are sent to the model at once. Two, not all of them: the calls
+ * go to one provider (Fireworks, pinned with no fallback), whose rate limit a burst of parallel
+ * requests would hit, and a rate-limit error fails the whole analysis. Two still roughly halves the
+ * wait against the route's time limit. A Document in one part makes one call either way.
+ */
+const PART_CONCURRENCY = 2;
+
+export interface AnalyseOptions {
+  /**
+   * The most characters of unit lines one model call may carry. Defaults to `DEFAULT_PART_BUDGET`;
+   * see there for why. Tests pass a small one to split short fixtures.
+   */
+  partBudget?: number;
+}
+
+type ShownFinding<T extends RawCitedFinding> = { raw: T; unit: SentenceUnit; index: number; shown: [Claim, ...Claim[]] };
+
+type CitedSummarySentence = { raw: RawSummarySentence; sources: [SourceSentence, ...SourceSentence[]] };
+
+/** What one model response yields once every citation in it matched and its claims were checked. */
+interface PartAnalysis {
+  readonly part: DocumentPart;
+  readonly flags: ShownFinding<RawRiskFlag>[];
+  readonly worthALook: ShownFinding<RawCitedFinding>[];
+  readonly multiplierNotes: ShownFinding<RawCitedFinding>[];
+  readonly summary: CitedSummarySentence[];
+  readonly missingProtections: RawMissingProtection[];
+  readonly niceToHave: RawAbsence<NiceToHaveKind>[];
+  readonly checklist: RawChecklistItem[];
+  readonly checkUnits: Map<CheckId, SentenceUnit>;
+}
+
 export async function analyse(
   documentText: string,
   redLines: readonly RedLine[],
   modelClient: ModelClient,
+  options: AnalyseOptions = {},
 ): Promise<AnalysisResult> {
   const units = segmentSentences(documentText);
   if (units.length === 0) {
     throw new AnalysisResponseError("The document has no text to analyse.");
   }
 
-  const response = await modelClient.completeJson(buildAnalysisRequest(units, redLines));
+  const parts = splitIntoParts(units, options.partBudget ?? DEFAULT_PART_BUDGET);
+  const unitsById = new Map<string, SentenceUnit>(units.map((unit) => [unit.id, unit]));
+  const analysed = await runEveryPart(parts, async (part) => {
+    const position = parts.length > 1 ? { index: part.index, count: parts.length } : undefined;
+    const response = await modelClient.completeJson(buildAnalysisRequest(part.units, redLines, position));
+    const analysis = readPart(response, part, documentText, unitsById);
+    // Each part must hold together on its own before it is merged: a part whose checklist
+    // contradicts its own findings is as malformed as a whole-Document answer that does.
+    if (parts.length > 1) assemble(documentText, [analysis]);
+    return analysis;
+  });
+  return assemble(documentText, analysed);
+}
+
+/**
+ * Runs every part, at most `PART_CONCURRENCY` at a time, and returns their analyses in part order.
+ * Any part failing (the model call rejecting, a malformed answer, a citation that does not match)
+ * fails the whole analysis: no further part is started, and the error of the earliest failed part
+ * is thrown once the parts already running have settled. There is no partial result.
+ */
+async function runEveryPart(
+  parts: readonly DocumentPart[],
+  task: (part: DocumentPart) => Promise<PartAnalysis>,
+): Promise<PartAnalysis[]> {
+  const results: PartAnalysis[] = [];
+  const failures: { index: number; error: unknown }[] = [];
+  let next = 0;
+  const worker = async () => {
+    while (failures.length === 0 && next < parts.length) {
+      const part = parts[next++];
+      try {
+        results[part.index] = await task(part);
+      } catch (error) {
+        if (parts.length > 1 && error instanceof Error) {
+          error.message = `Part ${part.index + 1} of ${parts.length}: ${error.message}`;
+        }
+        failures.push({ index: part.index, error });
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(PART_CONCURRENCY, parts.length) }, worker));
+  if (failures.length > 0) {
+    throw failures.sort((a, b) => a.index - b.index)[0].error;
+  }
+  return results;
+}
+
+/**
+ * Reads one model response and checks every citation in it against the full stored text. Unit ids
+ * are the full-text ids, so a span from any part resolves to offsets in the whole Document.
+ */
+function readPart(
+  response: unknown,
+  part: DocumentPart,
+  documentText: string,
+  unitsById: ReadonlyMap<string, SentenceUnit>,
+): PartAnalysis {
   const rawFlags = readRiskFlags(response);
   const rawWorthALook = readUnrankedFindings(response, "worthALook", "worth-a-look");
   const rawMultiplierNotes = readUnrankedFindings(response, "multiplierNotes", "multiplier-note");
-  const rawMissingProtections = readAbsences(response, "missingProtections", PROTECTION_KINDS, ABSENCE_NAMES.missingProtections);
-  const rawNiceToHave = readAbsences(response, "niceToHave", NICE_TO_HAVE_KINDS, ABSENCE_NAMES.niceToHave);
+  const missingProtections = readAbsences(response, "missingProtections", PROTECTION_KINDS, ABSENCE_NAMES.missingProtections);
+  const niceToHave = readAbsences(response, "niceToHave", NICE_TO_HAVE_KINDS, ABSENCE_NAMES.niceToHave);
   const rawSummary = readSummary(response);
-  const rawChecklist = readChecklist(response);
+  const checklist = readChecklist(response);
 
   // Every cited finding type goes through one validation pass, so a single CitationError names every
   // failed finding of any type. Summary sentences are checked span by span, withheld ones included.
   // Checklist entries that say something is in the text are checked too: they are claims about a
   // sentence, so they must show it verbatim like any other (ADR-0001).
-  const unitsById = new Map<string, SentenceUnit>(units.map((unit) => [unit.id, unit]));
   const failures: FailedCitation[] = [];
   const citedFlags = citeAll("risk-flag", rawFlags, documentText, unitsById, failures);
   const citedWorthALook = citeAll("worth-a-look", rawWorthALook, documentText, unitsById, failures);
   const citedMultiplierNotes = citeAll("multiplier-note", rawMultiplierNotes, documentText, unitsById, failures);
-  const citedSummary = citeSummary(rawSummary, documentText, unitsById, failures);
-  const citedChecks = rawChecklist.filter((item) => CITED_OUTCOMES.includes(item.outcome));
-  const citedCheckUnits = new Map(
+  const summary = citeSummary(rawSummary, documentText, unitsById, failures);
+  const citedChecks = checklist.filter((item) => CITED_OUTCOMES.includes(item.outcome));
+  const checkUnits = new Map(
     citeAll("checklist-item", citedChecks, documentText, unitsById, failures).map(({ raw, unit }) => [raw.check, unit]),
   );
 
@@ -194,6 +285,20 @@ export async function analyse(
     throw new CitationError(
       failures,
       rawFlags.length + rawWorthALook.length + rawMultiplierNotes.length + rawSummary.length + citedChecks.length,
+    );
+  }
+
+  // A part may cite only the units it was shown. A unit from elsewhere in the Document matches the
+  // stored text, but the model was never shown it in this request, so the answer is malformed.
+  const shown = new Set(part.units.map((unit) => unit.id));
+  const outside = [
+    ...[...citedFlags, ...citedWorthALook, ...citedMultiplierNotes].map(({ unit }) => unit.id),
+    ...rawSummary.flatMap((sentence) => sentence.sources.map((span) => span.unitId)),
+    ...[...checkUnits.values()].map((unit) => unit.id),
+  ].filter((id, position, ids) => !shown.has(id) && ids.indexOf(id) === position);
+  if (outside.length > 0) {
+    throw new AnalysisResponseError(
+      `The model's answer cites ${outside.length === 1 ? "a unit" : "units"} outside the part it was shown: ${outside.join(", ")}.`,
     );
   }
 
@@ -212,9 +317,58 @@ export async function analyse(
     ["multiplier-note", citedMultiplierNotes],
   ]);
 
-  const flagsWithClaims = withShownClaims("risk-flag", citedFlags);
-  const worthALookWithClaims = withShownClaims("worth-a-look", citedWorthALook);
-  const multiplierNotesWithClaims = withShownClaims("multiplier-note", citedMultiplierNotes);
+  return {
+    part,
+    flags: withShownClaims("risk-flag", citedFlags),
+    worthALook: withShownClaims("worth-a-look", citedWorthALook),
+    multiplierNotes: withShownClaims("multiplier-note", citedMultiplierNotes),
+    summary,
+    missingProtections,
+    niceToHave,
+    checklist,
+    checkUnits,
+  };
+}
+
+/**
+ * Builds the result from the analysed parts, in part order. A Document in one part goes through
+ * the same code, and every rule below then reduces to reading that one answer as it is.
+ *
+ * Merge rules for a Document analysed in parts:
+ * - Risk flags, Worth a look and Multiplier notes are the union across parts. Parts overlap at their
+ *   edges, so two parts can cite the same unit: under the same type that is one finding, taken from
+ *   the earliest part that cites it (its title, claims and Counter-offer). Two Risk flags on one unit
+ *   with a different severity band or check contradict each other and fail the analysis as
+ *   malformed, and one unit under two different types fails as it does within one answer. Ranking
+ *   runs once, over the merged Risk flags: band, then the model's rank, then Document order.
+ * - Summary: every part's shown sentences, in part order, with no cap, so the summary covers the
+ *   whole Document and not only its start. A sentence citing exactly the same units as a sentence
+ *   from an earlier part is the overlap read twice, and only the first is kept. Every span was
+ *   validated in its own part.
+ * - Checklist: a protection is present if any part marks it present, citing that part's sentence
+ *   (the earliest). A harm check is flagged if any part flags it, else bounded if any part finds it
+ *   bounded (the earliest citation), else not-found. A bounded citation from any part on a sentence
+ *   that is a merged Risk flag fails the analysis. The merged checklist then faces the same
+ *   contradiction checks against the merged findings as a single answer does.
+ * - Missing protections and Nice to have: raised only when the whole Document lacks the term. Their
+ *   union is taken one entry per kind (the earliest part's wording), and any kind the merged
+ *   checklist marks present is dropped, whichever part raised it. A kind left as both a Missing
+ *   protection and a Nice to have fails as it does within one answer.
+ * - `nothingFound` is computed on the merged Risk flags.
+ */
+function assemble(documentText: string, analyses: readonly PartAnalysis[]): AnalysisResult {
+  const inParts = analyses.length > 1;
+
+  failIfCitedTwice([
+    ["risk-flag", analyses.flatMap((analysis) => analysis.flags)],
+    ["worth-a-look", analyses.flatMap((analysis) => analysis.worthALook)],
+    ["multiplier-note", analyses.flatMap((analysis) => analysis.multiplierNotes)],
+  ]);
+  if (inParts) failIfFlaggedDifferently(analyses);
+
+  const flagsWithClaims = firstPerUnit(analyses.map((analysis) => analysis.flags));
+  const worthALookWithClaims = firstPerUnit(analyses.map((analysis) => analysis.worthALook));
+  const multiplierNotesWithClaims = firstPerUnit(analyses.map((analysis) => analysis.multiplierNotes));
 
   const bandOrder = (band: SeverityBand) => SEVERITY_BANDS.indexOf(band);
   flagsWithClaims.sort(
@@ -253,13 +407,26 @@ export async function analyse(
     source: sourceOf(documentText, unit),
   }));
 
-  const missingProtections = toMissingProtections(rawMissingProtections);
-  const niceToHave = toNiceToHave(rawNiceToHave);
+  const { items: mergedChecklist, units: checkUnits } = mergeChecklists(analyses);
+  if (inParts) failIfBoundedIsFlagged(analyses, riskFlags);
+
+  // Within one answer, a kind marked present beside an absence of that kind is a contradiction that
+  // toChecklist reports. Across parts it is the point of merging: the part that lacks the term did
+  // not see the part that states it.
+  const presentKinds = new Set<string>(
+    inParts ? mergedChecklist.filter((item) => item.outcome === "present").map((item) => item.check) : [],
+  );
+  const missingProtections = toMissingProtections(
+    firstPerKind(analyses.map((analysis) => analysis.missingProtections)).filter((entry) => !presentKinds.has(entry.protection)),
+  );
+  const niceToHave = toNiceToHave(
+    firstPerKind(analyses.map((analysis) => analysis.niceToHave)).filter((entry) => !presentKinds.has(entry.protection)),
+  );
   failIfRaisedAsBothAbsences(missingProtections, niceToHave);
-  const checklist = toChecklist(rawChecklist, citedCheckUnits, documentText, riskFlags, missingProtections, niceToHave);
+  const checklist = toChecklist(mergedChecklist, checkUnits, documentText, riskFlags, missingProtections, niceToHave);
 
   return {
-    summary: toShownSummary(citedSummary),
+    summary: toShownSummary(mergeSummaries(analyses)),
     // Computed here from the flags that survived validation. The model is never asked whether the
     // Document is clean, so it cannot declare it clean on its own.
     nothingFound: riskFlags.length === 0,
@@ -270,6 +437,112 @@ export async function analyse(
     missingProtections,
     niceToHave,
   };
+}
+
+/** One finding per unit, the earliest part's. Within one part, failIfCitedTwice has already run. */
+function firstPerUnit<T extends { unit: SentenceUnit }>(perPart: readonly (readonly T[])[]): T[] {
+  const seen = new Set<string>();
+  const kept: T[] = [];
+  for (const findings of perPart) {
+    const fromThisPart = findings.filter((finding) => !seen.has(finding.unit.id));
+    kept.push(...fromThisPart);
+    for (const finding of fromThisPart) seen.add(finding.unit.id);
+  }
+  return kept;
+}
+
+/** One absence per kind, the earliest part's, in the order first raised. */
+function firstPerKind<T extends { protection: NiceToHaveKind }>(perPart: readonly (readonly T[])[]): T[] {
+  const kept: T[] = [];
+  for (const entries of perPart) {
+    for (const entry of entries) {
+      if (!kept.some((candidate) => candidate.protection === entry.protection)) kept.push(entry);
+    }
+  }
+  return kept;
+}
+
+/**
+ * Summary sentences in part order. A sentence citing the same units as one from an earlier part is
+ * dropped: it is the overlap between parts summarised twice. Sentences within one part are never
+ * dropped.
+ */
+function mergeSummaries(analyses: readonly PartAnalysis[]): CitedSummarySentence[] {
+  const earlierKeys = new Set<string>();
+  const merged: CitedSummarySentence[] = [];
+  for (const analysis of analyses) {
+    const keyOf = (sentence: CitedSummarySentence) => sentence.sources.map((source) => source.start).join(",");
+    merged.push(...analysis.summary.filter((sentence) => !earlierKeys.has(keyOf(sentence))));
+    for (const sentence of analysis.summary) earlierKeys.add(keyOf(sentence));
+  }
+  return merged;
+}
+
+/**
+ * One checklist entry per check across parts. Harm checks: flagged beats bounded beats not-found.
+ * Protection checks: present beats missing. Among entries with the winning outcome, the earliest
+ * part's is kept, with its citation.
+ */
+function mergeChecklists(analyses: readonly PartAnalysis[]): {
+  items: RawChecklistItem[];
+  units: Map<CheckId, SentenceUnit>;
+} {
+  const strength: Record<CheckOutcome, number> = { flagged: 2, bounded: 1, "not-found": 0, present: 1, missing: 0 };
+  const items: RawChecklistItem[] = [];
+  const units = new Map<CheckId, SentenceUnit>();
+  for (const check of CHECK_IDS) {
+    let chosen: { item: RawChecklistItem; analysis: PartAnalysis } | undefined;
+    for (const analysis of analyses) {
+      // readChecklist already rejected a checklist that leaves out any check.
+      const item = analysis.checklist.find((candidate) => candidate.check === check)!;
+      if (!chosen || strength[item.outcome] > strength[chosen.item.outcome]) chosen = { item, analysis };
+    }
+    items.push(chosen!.item);
+    const unit = chosen!.analysis.checkUnits.get(check);
+    if (unit) units.set(check, unit);
+  }
+  return { items, units };
+}
+
+/**
+ * The same sentence flagged by two parts with a different severity band or check is two judgements
+ * of one clause. Keeping either would override the model on the other, so the analysis fails.
+ */
+function failIfFlaggedDifferently(analyses: readonly PartAnalysis[]): void {
+  const firstByUnit = new Map<string, RawRiskFlag>();
+  const problems: string[] = [];
+  for (const { raw, unit } of analyses.flatMap((analysis) => analysis.flags)) {
+    const first = firstByUnit.get(unit.id);
+    if (!first) {
+      firstByUnit.set(unit.id, raw);
+    } else if (first.severityBand !== raw.severityBand || first.check !== raw.check) {
+      problems.push(
+        `unit ${unit.id} as ${first.severityBand} ${first.check} and as ${raw.severityBand} ${raw.check}`,
+      );
+    }
+  }
+  if (problems.length === 0) return;
+  throw new AnalysisResponseError(`Two parts flag the same sentence differently: ${problems.join(", ")}.`);
+}
+
+/**
+ * A part that found a clause bounded while another part flagged the same sentence has judged one
+ * clause capped and uncapped at once. The merged checklist would keep only the flag and hide that,
+ * so the analysis fails.
+ */
+function failIfBoundedIsFlagged(analyses: readonly PartAnalysis[], riskFlags: readonly RiskFlag[]): void {
+  const problems: string[] = [];
+  for (const analysis of analyses) {
+    for (const [check, unit] of analysis.checkUnits) {
+      const item = analysis.checklist.find((candidate) => candidate.check === check)!;
+      if (item.outcome !== "bounded") continue;
+      const flag = riskFlags.find((candidate) => candidate.source.start === unit.start && candidate.source.end === unit.end);
+      if (flag) problems.push(`${check} is marked bounded in part ${analysis.part.index + 1}, citing unit ${unit.id}, which is Risk flag #${flag.rank}`);
+    }
+  }
+  if (problems.length > 0) {
+    throw new AnalysisResponseError(`The checklist contradicts the findings: ${problems.join("; ")}.`);
+  }
 }
 
 /**

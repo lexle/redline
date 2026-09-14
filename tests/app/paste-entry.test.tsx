@@ -36,4 +36,30 @@ describe("the entry screen's paste box", () => {
     expect(url).toBe("/api/analyse");
     expect(JSON.parse(init.body as string)).toEqual({ text: pasted, redLines: [] });
   });
+
+  it("says a long document is read in parts while it is checked, and shows only the failure if a part fails", async () => {
+    const sentence = "The Contractor shall deliver the work described in the attached schedule on time. ";
+    const pasted = sentence.repeat(1_500);
+    let answer: (response: Response) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))));
+    render(<AnalysePage />);
+
+    fireEvent.change(screen.getByLabelText("Or paste the text"), { target: { value: pasted } });
+    fireEvent.click(screen.getByRole("button", { name: "Check this text" }));
+
+    expect(screen.getByRole("status").textContent).toMatch(/It's long, so Redline reads it in [2-9] parts and shows nothing until every part is done/);
+    answer(Response.json({ ok: false, code: "citation" }, { status: 502 }));
+    expect(await screen.findByText("The analysis failed")).toBeTruthy();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("does not mention parts for a document that fits in one request", () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
+    render(<AnalysePage />);
+
+    fireEvent.change(screen.getByLabelText("Or paste the text"), { target: { value: "Fees are due on signing." } });
+    fireEvent.click(screen.getByRole("button", { name: "Check this text" }));
+
+    expect(screen.getByRole("status").textContent).toBe("Checking your pasted document. This can take a minute.");
+  });
 });

@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { JsonCompletionRequest, ModelClient } from "../../lib/model/model-client";
 import { segmentSentences } from "../../lib/analysis/segment";
+import type { SentenceUnit } from "../../lib/analysis/segment";
+import { PROTECTION_KINDS } from "../../lib/analysis/types";
 import { CHECK_IDS, isHarmCheck } from "../../lib/analysis/checks";
 import type { CheckId, RiskFlagCheck } from "../../lib/analysis/checks";
 
@@ -176,8 +178,11 @@ export interface SidecarClientOptions {
   contradictChecklist?: string[];
   /** Quote to send instead of the unit's exact text for a checklist item that cites, keyed by check. */
   checklistQuotes?: Record<string, string>;
-  /** Corrupt or reshape the payload before it is returned. */
-  tamper?: (payload: ModelPayload) => ModelPayload;
+  /**
+   * Corrupt or reshape the payload before it is returned. For a request showing only part of the
+   * Document it runs on that part's answer, with the unit ids the request showed.
+   */
+  tamper?: (payload: ModelPayload, shown: { unitIds: readonly string[] }) => ModelPayload;
 }
 
 export interface PlannedSummarySentence {
@@ -260,7 +265,12 @@ export function checklistDetailFor(check: string): string {
  */
 export class SidecarModelClient implements ModelClient {
   readonly requests: JsonCompletionRequest[] = [];
+  /** Every call, with the unit ids its prompt showed and the answer sent back. */
+  readonly calls: StubCall[] = [];
   private readonly payload: ModelPayload;
+  private readonly fixture: Fixture;
+  private readonly units: SentenceUnit[];
+  private readonly tamper: SidecarClientOptions["tamper"];
 
   constructor(fixture: Fixture, options: SidecarClientOptions | SidecarClientOptions["tamper"] = {}) {
     const {
@@ -460,11 +470,128 @@ export class SidecarModelClient implements ModelClient {
     const payload: ModelPayload = onlyMultiplierNotes
       ? { summary, riskFlags: [], worthALook: [], multiplierNotes, missingProtections, niceToHave, checklist }
       : { summary, riskFlags, worthALook, multiplierNotes, missingProtections, niceToHave, checklist };
-    this.payload = tamper ? tamper(structuredClone(payload)) : payload;
+    this.fixture = fixture;
+    this.units = units;
+    this.tamper = tamper;
+    this.payload = tamper ? tamper(structuredClone(payload), { unitIds: units.map((unit) => unit.id) }) : payload;
   }
 
   async completeJson(request: JsonCompletionRequest): Promise<unknown> {
     this.requests.push(request);
-    return structuredClone(this.payload);
+    const shownIds = new Set([...request.user.matchAll(/^\[(u\d+)\] "/gm)].map((match) => match[1]));
+    const visible = this.units.filter((unit) => shownIds.has(unit.id));
+    const response =
+      visible.length === this.units.length
+        ? structuredClone(this.payload)
+        : this.tamper
+          ? this.tamper(this.partPayload(visible), { unitIds: visible.map((unit) => unit.id) })
+          : this.partPayload(visible);
+    this.calls.push({ request, unitIds: visible.map((unit) => unit.id), response: structuredClone(response) });
+    return response;
   }
+
+  /**
+   * The answer a correct model would give when shown only some of the Document's units: findings
+   * only on the planted sentences it can see (a sentence repeated in the Document is found wherever
+   * it is shown), a summary citing only those units, and a checklist and absences worked out from
+   * that part alone. A protection whose sentence is not shown is reported missing, as a model seeing
+   * only this part would report it. The whole-document options above do not apply here; `tamper`
+   * does, and receives the unit ids shown.
+   */
+  private partPayload(visible: readonly SentenceUnit[]): ModelPayload {
+    const { sidecar } = this.fixture;
+    const find = (sentence: string) => visible.find((unit) => unit.text === sentence);
+    const seen = (findingType: string) =>
+      sidecar.plantedClauses.flatMap((clause) => {
+        const unit = clause.findingType === findingType ? find(clause.sentence) : undefined;
+        return unit ? [{ clause, unit }] : [];
+      });
+    const riskFlags = seen("risk-flag").map(
+      ({ clause, unit }): ModelRiskFlag => ({
+        unitId: unit.id,
+        quote: unit.text,
+        title: clause.id,
+        check: CHECK_FOR_CLAUSE_TYPE[clause.clauseType],
+        claims: [readOffClaimFor(clause), inferenceClaimFor(clause)],
+        severityBand: clause.severityBand!,
+        rank: clause.expectedRank!,
+        counterOffer: counterOfferFor(clause),
+      }),
+    );
+    const unranked = (findingType: string) =>
+      seen(findingType).map(({ clause, unit }) => ({
+        unitId: unit.id,
+        quote: unit.text,
+        title: clause.id,
+        claims: [readOffClaimFor(clause), inferenceClaimFor(clause)],
+      }));
+    const summary = plannedSummary(this.fixture).flatMap((sentence): ModelSummarySentence[] => {
+      const units = sentence.sentences.map(find);
+      if (units.some((unit) => unit === undefined)) return [];
+      return [{ text: sentence.text, tier: "read-off", sources: units.map((unit) => ({ unitId: unit!.id, quote: unit!.text })) }];
+    });
+    if (summary.length === 0) {
+      summary.push({
+        text: `This part of the Document opens with ${visible[0].id}.`,
+        tier: "read-off",
+        sources: [{ unitId: visible[0].id, quote: visible[0].text }],
+      });
+    }
+    const expectedNiceToHave = sidecar.expectedNiceToHave ?? [];
+    const statingUnit = (kind: string) => {
+      const present = sidecar.presentProtections?.find((entry) => entry.id === kind);
+      return present ? find(present.sentence) : undefined;
+    };
+    const missingProtections = PROTECTION_KINDS.filter(
+      (kind) => !statingUnit(kind) && !expectedNiceToHave.some((entry) => entry.id === kind),
+    ).map((kind): ModelMissingProtection => {
+      const expected = sidecar.expectedMissingProtections?.find((entry) => entry.id === kind) ?? {
+        id: kind,
+        why: `No sentence in this part addresses ${kind.replace(/-/g, " ")}.`,
+      };
+      return {
+        protection: kind,
+        statement: statementFor(expected),
+        claims: [inferenceClaimForAbsence(expected)],
+        proposedInsertion: proposedInsertionFor(expected),
+      };
+    });
+    const niceToHave = expectedNiceToHave
+      .filter((expected) => !statingUnit(expected.id))
+      .map(
+        (expected): ModelNiceToHave => ({
+          protection: expected.id,
+          statement: niceToHaveStatementFor(expected),
+          claims: [inferenceClaimForAbsence(expected)],
+          proposedInsertion: niceToHaveInsertionFor(expected),
+        }),
+      );
+    const uncited = { unitId: "", quote: "", detail: "" };
+    const checklist = CHECK_IDS.map((check): ModelChecklistItem => {
+      if (isHarmCheck(check)) {
+        return { check, outcome: riskFlags.some((flag) => flag.check === check) ? "flagged" : "not-found", ...uncited };
+      }
+      const unit = statingUnit(check);
+      return unit
+        ? { check, outcome: "present", unitId: unit.id, quote: unit.text, detail: checklistDetailFor(check) }
+        : { check, outcome: "missing", ...uncited };
+    });
+    return {
+      summary,
+      riskFlags,
+      worthALook: unranked("worth-a-look"),
+      multiplierNotes: unranked("multiplier-note"),
+      missingProtections,
+      niceToHave,
+      checklist,
+    };
+  }
+}
+
+/** What the stub was shown and what it answered, for one call. */
+export interface StubCall {
+  request: JsonCompletionRequest;
+  /** The unit ids the request's prompt showed, in Document order. */
+  unitIds: string[];
+  response: unknown;
 }

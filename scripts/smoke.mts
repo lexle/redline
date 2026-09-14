@@ -7,6 +7,7 @@
 
 import { readFileSync } from "node:fs";
 import { analyse, AnalysisResponseError, CitationError } from "../lib/analysis/analyse.ts";
+import { countParts } from "../lib/analysis/parts.ts";
 import { ModelError } from "../lib/model/model-client.ts";
 import { createOpenRouterClient } from "../lib/model/openrouter-client.ts";
 
@@ -25,7 +26,16 @@ console.log(`Document: tests/fixtures/adhesion-contract.txt (${documentText.leng
 
 const started = Date.now();
 try {
-  const result = await analyse(documentText, [], createOpenRouterClient());
+  const openRouter = createOpenRouterClient();
+  let modelCalls = 0;
+  const countingClient = {
+    completeJson(request: Parameters<typeof openRouter.completeJson>[0]) {
+      modelCalls++;
+      return openRouter.completeJson(request);
+    },
+  };
+  const result = await analyse(documentText, [], countingClient);
+  console.log(`Parts: ${countParts(documentText)} (${modelCalls} model ${modelCalls === 1 ? "call" : "calls"} made)\n`);
   console.log(`Summary: ${result.summary.length} sentences, every span cited verbatim\n`);
   for (const sentence of result.summary) {
     console.log(`- (${sentence.tier}) ${sentence.text}`);
