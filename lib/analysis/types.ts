@@ -136,11 +136,28 @@ export interface MissingProtection {
   readonly proposedInsertion: string;
 }
 
+/**
+ * One sentence of the plain-English summary (ADR-0010). It rests on one or more Source sentences,
+ * each validated verbatim like a Risk flag's. `sources` is required and never empty, so there is no
+ * way to build a summary sentence that points at nothing. A summary never states an absence
+ * (ADR-0005): what the Document leaves out belongs to Missing protections.
+ */
+export interface SummarySentence {
+  readonly kind: "summary-sentence";
+  /** needs-signer-facts sentences are withheld by `analyse`, so they never appear here. */
+  readonly tier: ShownTier;
+  readonly text: string;
+  /** In the order the model cited them. Each is `documentText.slice(start, end) === text`. */
+  readonly sources: readonly [SourceSentence, ...SourceSentence[]];
+}
+
 export interface RedLine {
   readonly text: string;
 }
 
 export interface AnalysisResult {
+  /** What the Document is and what it commits the Signer to, in the model's order. Never empty. */
+  readonly summary: readonly [SummarySentence, ...SummarySentence[]];
   /** Their own list, never merged into the Risk flag ranking (ADR-0005). */
   readonly missingProtections: readonly MissingProtection[];
   readonly riskFlags: readonly RiskFlag[];

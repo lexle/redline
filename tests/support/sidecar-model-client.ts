@@ -19,9 +19,16 @@ export interface ExpectedMissingProtection {
   why: string;
 }
 
+export interface PresentProtection {
+  id: string;
+  sentence: string;
+}
+
 export interface Sidecar {
   document: string;
   plantedClauses: PlantedClause[];
+  /** Sentences a clean fixture uses to address each protection. */
+  presentProtections?: PresentProtection[];
   /** Absent from a fixture that addresses every protection. */
   expectedMissingProtections?: ExpectedMissingProtection[];
 }
@@ -82,7 +89,19 @@ export interface ModelMissingProtection {
   quote?: string;
 }
 
+export interface ModelSpan {
+  unitId: string;
+  quote: string;
+}
+
+export interface ModelSummarySentence {
+  text: string;
+  tier: ModelTier;
+  sources: ModelSpan[];
+}
+
 export interface ModelPayload {
+  summary: ModelSummarySentence[];
   riskFlags: ModelRiskFlag[];
   worthALook: ModelWorthALook[];
   multiplierNotes: ModelMultiplierNote[];
@@ -111,8 +130,39 @@ export interface SidecarClientOptions {
   duplicateProtections?: string[];
   /** Protection kinds whose Missing protection is sent with the unit id (and quote) of the Document's first sentence. */
   attachUnitIdTo?: string[];
+  /** Send this quote instead of the unit's exact text for one span of one planned summary sentence. */
+  summaryQuote?: { sentence: number; span: number; quote: string };
+  /** Planned summary sentences (by position) sent with an empty sources list. */
+  summaryWithoutSpans?: number[];
+  /** Planned summary sentences (by position) tagged needs-signer-facts instead of read-off. */
+  signerFactsSummary?: number[];
   /** Corrupt or reshape the payload before it is returned. */
   tamper?: (payload: ModelPayload) => ModelPayload;
+}
+
+export interface PlannedSummarySentence {
+  text: string;
+  /** The Document sentences it cites, in order. */
+  sentences: string[];
+}
+
+/**
+ * The summary the stub sends for a fixture, built from the sidecar: the first sentence cites one
+ * sidecar sentence, the second cites the next two. The sidecar sentences are the planted clauses in
+ * sidecar order, then any present protections.
+ */
+export function plannedSummary(fixture: Fixture): PlannedSummarySentence[] {
+  const citable = [
+    ...fixture.sidecar.plantedClauses.map((clause) => ({ id: clause.id, sentence: clause.sentence })),
+    ...(fixture.sidecar.presentProtections ?? []),
+  ];
+  if (citable.length < 3) {
+    throw new Error(`${fixture.sidecar.document} needs at least three sidecar sentences to plan a summary.`);
+  }
+  return [[citable[0]], [citable[1], citable[2]]].map((cited) => ({
+    text: `The Document commits the Signer to what ${cited.map((entry) => entry.id).join(" and ")} say.`,
+    sentences: cited.map((entry) => entry.sentence),
+  }));
 }
 
 /** The read-off claim the stub gives each planted flag: the clause's type, taken from the sidecar. */
@@ -168,6 +218,9 @@ export class SidecarModelClient implements ModelClient {
       proposedInsertions = {},
       duplicateProtections = [],
       attachUnitIdTo = [],
+      summaryQuote,
+      summaryWithoutSpans = [],
+      signerFactsSummary = [],
       tamper,
     } = typeof options === "function" ? { tamper: options } : options;
     const expectedMissing = fixture.sidecar.expectedMissingProtections ?? [];
@@ -272,9 +325,28 @@ export class SidecarModelClient implements ModelClient {
     for (const kind of duplicateProtections) {
       missingProtections.push(structuredClone(missingProtections.find((entry) => entry.protection === kind)!));
     }
+    const planned = plannedSummary(fixture);
+    for (const position of [...summaryWithoutSpans, ...signerFactsSummary, ...(summaryQuote ? [summaryQuote.sentence] : [])]) {
+      if (!planned[position]) throw new Error(`Options name summary sentence ${position}, which is not planned.`);
+    }
+    if (summaryQuote && !planned[summaryQuote.sentence].sentences[summaryQuote.span]) {
+      throw new Error(`Summary sentence ${summaryQuote.sentence} has no span ${summaryQuote.span}.`);
+    }
+    const summary = planned.map((sentence, position): ModelSummarySentence => ({
+      text: sentence.text,
+      tier: signerFactsSummary.includes(position) ? "needs-signer-facts" : "read-off",
+      sources: summaryWithoutSpans.includes(position)
+        ? []
+        : sentence.sentences.map((text, span) => {
+            const unit = units.find((candidate) => candidate.text === text);
+            if (!unit) throw new Error(`Summary sentence ${position} cites text that is not a single unit.`);
+            const tampered = summaryQuote?.sentence === position && summaryQuote.span === span;
+            return { unitId: unit.id, quote: tampered ? summaryQuote.quote : unit.text };
+          }),
+    }));
     const payload: ModelPayload = onlyMultiplierNotes
-      ? { riskFlags: [], worthALook: [], multiplierNotes, missingProtections }
-      : { riskFlags, worthALook, multiplierNotes, missingProtections };
+      ? { summary, riskFlags: [], worthALook: [], multiplierNotes, missingProtections }
+      : { summary, riskFlags, worthALook, multiplierNotes, missingProtections };
     this.payload = tamper ? tamper(structuredClone(payload)) : payload;
   }
 

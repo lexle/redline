@@ -8,14 +8,14 @@ text, and each span is validated verbatim, just like a Risk flag.
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** done (2026-09-14)
 
-- [ ] Each summary sentence carries one or more spans. Each span is resolved against the stored text
+- [x] Each summary sentence carries one or more spans. Each span is resolved against the stored text
       and must match verbatim.
-- [ ] A summary sentence whose span does not match makes the analysis throw, as a Risk flag's would.
+- [x] A summary sentence whose span does not match makes the analysis throw, as a Risk flag's would.
       There is no path to an ungrounded summary sentence.
-- [ ] Each summary sentence carries a provenance tier. Anything that would need facts about the Signer
+- [x] Each summary sentence carries a provenance tier. Anything that would need facts about the Signer
       is left out.
-- [ ] The Signer can see which part of the Document each summary sentence rests on.
-- [ ] Tests at the analysis seam, synthetic client: every summary sentence's spans are found verbatim,
+- [x] The Signer can see which part of the Document each summary sentence rests on.
+- [x] Tests at the analysis seam, synthetic client: every summary sentence's spans are found verbatim,
       and a mismatched span throws.

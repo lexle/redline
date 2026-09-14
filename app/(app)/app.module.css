@@ -178,6 +178,56 @@
   line-height: 1.5;
 }
 
+/* Summary: Redline's sentences in Archivo, first in the result. No magenta: nothing here is a flag.
+   Each sentence's Source sentences open under it in Tinos, via the shared .quote block. */
+.summary {
+  margin-bottom: 32px;
+}
+
+.summaryList {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.summaryItem {
+  min-width: 0;
+}
+
+.summaryText {
+  margin: 0;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+}
+
+.sourceToggle {
+  min-height: 32px;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--desk-ink-2);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+  transition: color 180ms var(--ease);
+}
+
+.sourceToggle:hover,
+.sourceToggle[aria-expanded="true"] {
+  color: var(--desk-ink);
+}
+
+.sourceToggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
 /* Ranked Risk flags */
 
 .listHeading {
@@ -463,6 +513,7 @@
 @media (prefers-reduced-motion: reduce) {
   .fileButton,
   .copyButton,
+  .sourceToggle,
   .unrankedSummary,
   .flag {
     transition: none;

@@ -32,8 +32,44 @@ const CLAIMS_SCHEMA: JsonSchema = {
 export const ANALYSIS_SCHEMA: JsonSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["riskFlags", "worthALook", "multiplierNotes", "missingProtections"],
+  required: ["summary", "riskFlags", "worthALook", "multiplierNotes", "missingProtections"],
   properties: {
+    summary: {
+      type: "array",
+      description:
+        "A short plain-English summary: what the document is and what it commits the Signer to. One sentence per item, each resting on the units it cites. At least one item.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["text", "tier", "sources"],
+        properties: {
+          text: {
+            type: "string",
+            description:
+              "One short, literal sentence that says only what the cited units say. No absences, no advice, no section numbers.",
+          },
+          tier: {
+            type: "string",
+            enum: [...PROVENANCE_TIERS],
+            description:
+              "read-off: readable straight off the cited units. inference: how they would likely play out. needs-signer-facts: depends on the Signer's jurisdiction, industry or leverage.",
+          },
+          sources: {
+            type: "array",
+            description: "Every unit the sentence rests on. Never empty. Each unit at most once.",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["unitId", "quote"],
+              properties: {
+                unitId: { type: "string", description: "A sentence unit id, e.g. u12." },
+                quote: { type: "string", description: "That unit's text, copied character for character." },
+              },
+            },
+          },
+        },
+      },
+    },
     missingProtections: {
       type: "array",
       description:
@@ -140,7 +176,15 @@ export const ANALYSIS_SCHEMA: JsonSchema = {
   },
 };
 
-const SYSTEM_PROMPT = `You read a document that a freelancer or small-business owner (the Signer) is about to sign. It was drafted by the other side. You find the sentences that could hurt the Signer and return them as risk flags, you list the sentences that are one-sided or unusual but bounded under worth a look, you list the sentences that make other harms worse under multiplier notes, and you list the protections the document fails to give the Signer at all under missing protections.
+const SYSTEM_PROMPT = `You read a document that a freelancer or small-business owner (the Signer) is about to sign. It was drafted by the other side. You write a short grounded summary of it, you find the sentences that could hurt the Signer and return them as risk flags, you list the sentences that are one-sided or unusual but bounded under worth a look, you list the sentences that make other harms worse under multiplier notes, and you list the protections the document fails to give the Signer at all under missing protections.
+
+Summary:
+- "summary" says, in a few short plain sentences, what the document is and what it commits the Signer to. Keep it short and literal: usually three to six sentences.
+- Every summary sentence cites, in "sources", each unit it rests on, with its unit id and a "quote" that is that unit's text exactly as given. A sentence that combines several units cites all of them. A sentence that cannot point at a unit is not written.
+- A summary sentence states only what its cited units say. Do not add figures, dates, parties or duties that the cited units do not state.
+- Never state an absence in the summary, such as "the agreement does not say when you are paid". What the document leaves out belongs under missing protections only.
+- No advice and no judgement of whether a term is fair or risky: describe what the document does.
+- Tag every summary sentence "read-off", "inference" or "needs-signer-facts" as for claims below. The first sentence says what the document is and is read-off. A needs-signer-facts sentence is never shown.
 
 A sentence earns a risk flag only when a plausible bad outcome either
 - costs the Signer money with no ceiling (severity band "high"), or
@@ -162,7 +206,7 @@ Rank the flags by probable cost to this Signer: how likely the clause is to bite
 
 Citing:
 - The document is given as numbered sentence units, each shown as its id and its text as a JSON string.
-- Each risk flag, worth a look entry and multiplier note cites exactly one unit id, and "quote" must be that unit's text exactly as given, with every space and punctuation mark unchanged (decode the JSON escapes).
+- Each risk flag, worth a look entry and multiplier note cites exactly one unit id, and each summary sentence cites one or more. Every "quote" must be its unit's text exactly as given, with every space and punctuation mark unchanged (decode the JSON escapes).
 - Never cite text that is not a unit. Never merge, trim or paraphrase a unit in "quote".
 
 Claims:

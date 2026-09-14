@@ -14,17 +14,20 @@ import type {
   RiskFlag,
   SeverityBand,
   SourceSentence,
+  SummarySentence,
   WorthALook,
 } from "./types.ts";
 import { PROTECTION_KINDS, PROVENANCE_TIERS, SEVERITY_BANDS } from "./types.ts";
 
 /** The finding types that cite a Source sentence and so go through citation validation. */
-export type CitedFindingType = "risk-flag" | "worth-a-look" | "multiplier-note";
+export type CitedFindingType = "risk-flag" | "worth-a-look" | "multiplier-note" | "summary-sentence";
 
 export interface FailedCitation {
   /** Position of the finding in the model's response, within its own finding type's list. */
   index: number;
   findingType: CitedFindingType;
+  /** For a summary sentence only: which of its spans failed, in the model's order. */
+  spanIndex?: number;
   unitId: string;
   quote: string;
   reason: "unknown-unit" | "quote-mismatch";
@@ -36,18 +39,20 @@ export interface FailedCitation {
  */
 export class CitationError extends Error {
   readonly failures: readonly FailedCitation[];
-  /** Every cited finding in the response, across all cited finding types. */
+  /** Every cited finding in the response, across all cited finding types, summary sentences included. */
   readonly findingCount: number;
 
   constructor(failures: FailedCitation[], findingCount: number) {
+    const failedFindings = countFailedFindings(failures);
     super(
-      `${failures.length} of ${findingCount} findings could not be matched to their source sentence: ` +
+      `${failedFindings} of ${findingCount} findings could not be matched to their source sentence: ` +
         failures
-          .map((failure) =>
-            failure.reason === "unknown-unit"
-              ? `${failure.findingType} #${failure.index} cites unknown unit ${JSON.stringify(failure.unitId)}`
-              : `${failure.findingType} #${failure.index} quote does not match unit ${failure.unitId} exactly`,
-          )
+          .map((failure) => {
+            const name = `${failure.findingType} #${failure.index}${failure.spanIndex === undefined ? "" : ` span ${failure.spanIndex}`}`;
+            return failure.reason === "unknown-unit"
+              ? `${name} cites unknown unit ${JSON.stringify(failure.unitId)}`
+              : `${name} quote does not match unit ${failure.unitId} exactly`;
+          })
           .join("; "),
     );
     this.name = "CitationError";
@@ -55,9 +60,14 @@ export class CitationError extends Error {
     this.findingCount = findingCount;
   }
 
+  /** Findings whose every span matched. A summary sentence with two failed spans is one failed finding. */
   get passedCount(): number {
-    return this.findingCount - this.failures.length;
+    return this.findingCount - countFailedFindings(this.failures);
   }
+}
+
+function countFailedFindings(failures: readonly FailedCitation[]): number {
+  return new Set(failures.map((failure) => `${failure.findingType}#${failure.index}`)).size;
 }
 
 /** The model's JSON does not have the shape the schema demands, or contradicts itself. */
@@ -94,7 +104,20 @@ interface RawRiskFlag extends RawCitedFinding {
   counterOffer: string;
 }
 
-const FINDING_NAMES: Record<CitedFindingType, { one: string; many: string; label: string }> = {
+interface RawSpan {
+  unitId: string;
+  quote: string;
+}
+
+interface RawSummarySentence {
+  text: string;
+  tier: ProvenanceTier;
+  sources: RawSpan[];
+}
+
+type ExclusiveFindingType = Exclude<CitedFindingType, "summary-sentence">;
+
+const FINDING_NAMES: Record<ExclusiveFindingType, { one: string; many: string; label: string }> = {
   "risk-flag": { one: "Risk flag", many: "Risk flags", label: "a Risk flag" },
   "worth-a-look": { one: "Worth a look entry", many: "Worth a look entries", label: "Worth a look" },
   "multiplier-note": { one: "Multiplier note", many: "Multiplier notes", label: "a Multiplier note" },
@@ -115,17 +138,22 @@ export async function analyse(
   const rawWorthALook = readUnrankedFindings(response, "worthALook", "worth-a-look");
   const rawMultiplierNotes = readUnrankedFindings(response, "multiplierNotes", "multiplier-note");
   const rawMissingProtections = readMissingProtections(response);
+  const rawSummary = readSummary(response);
 
   // Every cited finding type goes through one validation pass, so a single CitationError names every
-  // failed finding of any type.
+  // failed finding of any type. Summary sentences are checked span by span, withheld ones included.
   const unitsById = new Map<string, SentenceUnit>(units.map((unit) => [unit.id, unit]));
   const failures: FailedCitation[] = [];
   const citedFlags = citeAll("risk-flag", rawFlags, documentText, unitsById, failures);
   const citedWorthALook = citeAll("worth-a-look", rawWorthALook, documentText, unitsById, failures);
   const citedMultiplierNotes = citeAll("multiplier-note", rawMultiplierNotes, documentText, unitsById, failures);
+  const citedSummary = citeSummary(rawSummary, documentText, unitsById, failures);
 
   if (failures.length > 0) {
-    throw new CitationError(failures, rawFlags.length + rawWorthALook.length + rawMultiplierNotes.length);
+    throw new CitationError(
+      failures,
+      rawFlags.length + rawWorthALook.length + rawMultiplierNotes.length + rawSummary.length,
+    );
   }
 
   // A sentence cited under two finding types is a contradictory response, and the analysis fails as
@@ -183,7 +211,113 @@ export async function analyse(
     source: sourceOf(documentText, unit),
   }));
 
-  return { riskFlags, worthALook, multiplierNotes, missingProtections: toMissingProtections(rawMissingProtections) };
+  return {
+    summary: toShownSummary(citedSummary),
+    riskFlags,
+    worthALook,
+    multiplierNotes,
+    missingProtections: toMissingProtections(rawMissingProtections),
+  };
+}
+
+/**
+ * Resolves every span of every summary sentence. A sentence is returned only when all of its spans
+ * matched; any failed span is recorded, and the caller then throws for the whole analysis.
+ */
+function citeSummary(
+  sentences: readonly RawSummarySentence[],
+  documentText: string,
+  unitsById: ReadonlyMap<string, SentenceUnit>,
+  failures: FailedCitation[],
+): { raw: RawSummarySentence; sources: [SourceSentence, ...SourceSentence[]] }[] {
+  const cited: { raw: RawSummarySentence; sources: [SourceSentence, ...SourceSentence[]] }[] = [];
+  sentences.forEach((raw, index) => {
+    const sources: SourceSentence[] = [];
+    raw.sources.forEach(({ unitId, quote }, spanIndex) => {
+      const unit = unitsById.get(unitId);
+      if (!unit) {
+        failures.push({ index, findingType: "summary-sentence", spanIndex, unitId, quote, reason: "unknown-unit" });
+      } else if (documentText.slice(unit.start, unit.end) !== quote) {
+        failures.push({ index, findingType: "summary-sentence", spanIndex, unitId, quote, reason: "quote-mismatch" });
+      } else {
+        sources.push(sourceOf(documentText, unit));
+      }
+    });
+    // readSummary already rejected a sentence with no spans, so a full match is never empty.
+    if (sources.length === raw.sources.length) {
+      cited.push({ raw, sources: sources as [SourceSentence, ...SourceSentence[]] });
+    }
+  });
+  return cited;
+}
+
+// Summary sentences that need facts about the Signer are withheld entirely (ADR-0007): not shown, and
+// not in the result, so no display can leak them.
+//
+// A summary left empty, whether the model sent none or every sentence was withheld, fails the whole
+// analysis as malformed rather than being returned empty. Any Document with text says at least what
+// it is, and that can be read straight off one of its sentences, so an empty summary means the model
+// broke the rule to open with a read-off sentence. Returning it empty would put a blank at the top of
+// the result, where the Signer looks first, and read as though the Document said nothing.
+function toShownSummary(
+  cited: readonly { raw: RawSummarySentence; sources: [SourceSentence, ...SourceSentence[]] }[],
+): [SummarySentence, ...SummarySentence[]] {
+  const shown = cited
+    .filter(({ raw }) => raw.tier !== "needs-signer-facts")
+    .map(
+      ({ raw, sources }): SummarySentence => ({
+        kind: "summary-sentence",
+        tier: raw.tier as SummarySentence["tier"],
+        text: raw.text.trim(),
+        sources,
+      }),
+    );
+  if (shown.length === 0) {
+    throw new AnalysisResponseError(
+      cited.length === 0
+        ? "The model's answer has an empty summary."
+        : "The summary has no sentence left once sentences needing facts about the Signer are withheld.",
+    );
+  }
+  return shown as [SummarySentence, ...SummarySentence[]];
+}
+
+/**
+ * Reads the summary. Any of these fails the whole analysis as malformed: a sentence with blank text,
+ * an unknown tier, no sources list, zero spans (a summary sentence that points at nothing is exactly
+ * what ADR-0010 rules out), a span without a string unit id and quote, or the same unit cited twice
+ * in one sentence.
+ */
+function readSummary(response: unknown): RawSummarySentence[] {
+  if (typeof response !== "object" || response === null || !Array.isArray((response as Record<string, unknown>).summary)) {
+    throw new AnalysisResponseError("The model's answer has no summary list.");
+  }
+  return ((response as Record<string, unknown[]>).summary).map((item, index) => {
+    const sentence = item as Partial<Record<keyof RawSummarySentence, unknown>> | undefined;
+    const problems: string[] = [];
+    if (typeof sentence?.text !== "string" || sentence.text.trim() === "") problems.push("text is blank");
+    if (!PROVENANCE_TIERS.includes(sentence?.tier as ProvenanceTier)) problems.push("tier is not a known tier");
+    if (!Array.isArray(sentence?.sources)) {
+      problems.push("sources is not a list");
+    } else if (sentence.sources.length === 0) {
+      problems.push("it cites no span of the document");
+    } else {
+      const seen = new Set<string>();
+      sentence.sources.forEach((span: unknown, spanIndex: number) => {
+        const { unitId, quote } = (span ?? {}) as { unitId?: unknown; quote?: unknown };
+        if (typeof unitId !== "string" || typeof quote !== "string") {
+          problems.push(`span ${spanIndex} has no unitId or quote`);
+          return;
+        }
+        if (seen.has(unitId)) problems.push(`span ${spanIndex} cites unit ${unitId} a second time`);
+        seen.add(unitId);
+      });
+    }
+    if (problems.length > 0) {
+      throw new AnalysisResponseError(`Summary sentence #${index} in the model's answer is malformed: ${problems.join(", ")}.`);
+    }
+    return sentence as RawSummarySentence;
+  });
 }
 
 /**
@@ -219,10 +353,12 @@ function toMissingProtections(raw: readonly RawMissingProtection[]): MissingProt
     }));
 }
 
+// Summary sentences are not part of this check: a summary sentence may rest on a sentence that is
+// also a Risk flag, since saying what the Document commits the Signer to is not a judgement of harm.
 function failIfCitedTwice(
-  groups: readonly (readonly [CitedFindingType, readonly { unit: SentenceUnit }[]])[],
+  groups: readonly (readonly [ExclusiveFindingType, readonly { unit: SentenceUnit }[]])[],
 ): void {
-  const typesByUnit = new Map<string, CitedFindingType[]>();
+  const typesByUnit = new Map<string, ExclusiveFindingType[]>();
   for (const [findingType, findings] of groups) {
     for (const { unit } of findings) {
       const types = typesByUnit.get(unit.id) ?? [];
@@ -242,7 +378,7 @@ function failIfCitedTwice(
 }
 
 function citeAll<T extends RawCitedFinding>(
-  findingType: CitedFindingType,
+  findingType: ExclusiveFindingType,
   findings: readonly T[],
   documentText: string,
   unitsById: ReadonlyMap<string, SentenceUnit>,
@@ -273,7 +409,7 @@ function citeAll<T extends RawCitedFinding>(
 // from its own sentence is not grounded in that sentence. The prompt requires every finding to open
 // with a read-off claim, so this means the model broke that rule.
 function withShownClaims<T extends RawCitedFinding>(
-  findingType: CitedFindingType,
+  findingType: ExclusiveFindingType,
   cited: readonly { raw: T; unit: SentenceUnit; index: number }[],
 ): { raw: T; unit: SentenceUnit; index: number; shown: [Claim, ...Claim[]] }[] {
   const withClaims = cited.map((finding) => ({ ...finding, shown: finding.raw.claims.filter(isShown) }));

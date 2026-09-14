@@ -11,6 +11,7 @@ import type {
   MultiplierNote,
   ProtectionKind,
   SeverityBand,
+  SummarySentence,
   WorthALook,
 } from "../../../lib/analysis/types";
 import styles from "../app.module.css";
@@ -155,6 +156,7 @@ export default function AnalysePage() {
 
         {screen.state === "result" && (
           <>
+            <SummarySection fileName={screen.fileName} sentences={screen.result.summary} />
             <RiskFlagList fileName={screen.fileName} result={screen.result} />
             <MissingProtectionList fileName={screen.fileName} entries={screen.result.missingProtections} />
             <UnrankedSection
@@ -173,6 +175,58 @@ export default function AnalysePage() {
         )}
       </section>
     </div>
+  );
+}
+
+/**
+ * The plain-English summary (ADR-0010), first in the result. Each sentence is Redline's words, so
+ * Archivo; its Source sentences are the Document's words, so Tinos in quotes, shown on request.
+ */
+function SummarySection({ fileName, sentences }: { fileName: string; sentences: readonly SummarySentence[] }) {
+  return (
+    <section className={styles.summary} aria-labelledby="summary-heading">
+      <h2 id="summary-heading" className={styles.listHeading}>
+        Summary of {fileName}
+      </h2>
+      <ol className={styles.summaryList}>
+        {sentences.map((sentence, index) => (
+          <SummaryItem key={`${index}-${sentence.sources[0].start}`} sentence={sentence} index={index} />
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function SummaryItem({ sentence, index }: { sentence: SummarySentence; index: number }) {
+  const [open, setOpen] = useState(false);
+  const sourcesId = `summary-sources-${index}`;
+  const many = sentence.sources.length > 1;
+  return (
+    <li className={styles.summaryItem}>
+      <p className={styles.summaryText}>
+        {sentence.tier === "inference" && <span className={styles.inferenceLabel}>Inference</span>}{" "}
+        {sentence.text}
+      </p>
+      <button
+        type="button"
+        className={styles.sourceToggle}
+        aria-expanded={open}
+        aria-controls={sourcesId}
+        onClick={() => setOpen((value) => !value)}
+      >
+        {open
+          ? many ? "Hide the quotes" : "Hide the quote"
+          : many ? `Show the ${sentence.sources.length} quotes it rests on` : "Show the quote it rests on"}
+      </button>
+      <div id={sourcesId} hidden={!open}>
+        {sentence.sources.map((source) => (
+          <blockquote key={source.start} className={styles.quote}>
+            <p>“{source.text}”</p>
+          </blockquote>
+        ))}
+        <p className={styles.meta}>Quoted word for word from your document</p>
+      </div>
+    </li>
   );
 }
 

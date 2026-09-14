@@ -26,6 +26,14 @@ console.log(`Document: tests/fixtures/adhesion-contract.txt (${documentText.leng
 const started = Date.now();
 try {
   const result = await analyse(documentText, [], createOpenRouterClient());
+  console.log(`Summary: ${result.summary.length} sentences, every span cited verbatim\n`);
+  for (const sentence of result.summary) {
+    console.log(`- (${sentence.tier}) ${sentence.text}`);
+    for (const source of sentence.sources) {
+      console.log(`   Source [${source.start}, ${source.end}): "${source.text}"`);
+    }
+  }
+  console.log("");
   console.log(`${result.riskFlags.length} Risk flags, every one cited verbatim (${Date.now() - started} ms)\n`);
   for (const flag of result.riskFlags) {
     console.log(`#${flag.rank} [${flag.severityBand}] ${flag.title}`);

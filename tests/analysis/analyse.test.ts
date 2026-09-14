@@ -4,12 +4,13 @@ import { describe, expect, it } from "vitest";
 import { analyse, AnalysisResponseError, CitationError } from "../../lib/analysis/analyse";
 import { segmentSentences } from "../../lib/analysis/segment";
 import { ANALYSIS_SCHEMA } from "../../lib/analysis/prompt";
-import type { MissingProtection, RiskFlag } from "../../lib/analysis/types";
+import type { MissingProtection, RiskFlag, SummarySentence } from "../../lib/analysis/types";
 import {
   counterOfferFor,
   inferenceClaimFor,
   inferenceClaimForAbsence,
   loadFixture,
+  plannedSummary,
   proposedInsertionFor,
   readOffClaimFor,
   SidecarModelClient,
@@ -23,8 +24,9 @@ const plantedRiskFlags = adhesion.sidecar.plantedClauses
   .sort((a, b) => a.expectedRank! - b.expectedRank!);
 const plantedWorthALook = adhesion.sidecar.plantedClauses.filter((clause) => clause.findingType === "worth-a-look");
 const plantedMultiplierNotes = adhesion.sidecar.plantedClauses.filter((clause) => clause.findingType === "multiplier-note");
-/** Every finding the stub sends that cites a Source sentence: Risk flags, Worth a look and Multiplier notes. */
-const citedFindingCount = plantedRiskFlags.length + plantedWorthALook.length + plantedMultiplierNotes.length;
+/** Every finding the stub sends that cites a Source sentence: Risk flags, Worth a look, Multiplier notes and summary sentences. */
+const citedFindingCount =
+  plantedRiskFlags.length + plantedWorthALook.length + plantedMultiplierNotes.length + plannedSummary(adhesion).length;
 
 describe("analyse: Risk flags cite their Source sentence", () => {
   it("returns only Risk flags whose Source sentence is the exact stored text at its offsets", async () => {
@@ -851,5 +853,216 @@ describe("analyse: Missing protections cite nothing and sit in their own list", 
     };
     expect("source" in protection).toBe(true);
     expect("source" in uncited).toBe(false);
+  });
+});
+
+describe("analyse: every summary sentence is grounded in the Document", () => {
+  const units = segmentSentences(adhesion.text);
+  const planned = plannedSummary(adhesion);
+  const unitOf = (sentence: string) => units.find((unit) => unit.text === sentence)!;
+  const asSource = (sentence: string) => {
+    const unit = unitOf(sentence);
+    return { start: unit.start, end: unit.end, text: unit.text };
+  };
+
+  it("returns every summary sentence with Source sentences that are the exact stored text at their offsets", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
+
+    expect(result.summary.map((sentence) => sentence.text)).toEqual(planned.map((sentence) => sentence.text));
+    for (const sentence of result.summary) {
+      expect(sentence.kind).toBe("summary-sentence");
+      expect(sentence.tier).toBe("read-off");
+      expect(sentence.sources.length).toBeGreaterThan(0);
+      for (const source of sentence.sources) {
+        expect(adhesion.text.slice(source.start, source.end)).toBe(source.text);
+      }
+    }
+    expect(result.summary[0].sources).toEqual([asSource(planned[0].sentences[0])]);
+  });
+
+  it("carries both Source sentences, in order, on a summary sentence that rests on two units", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
+
+    expect(planned[1].sentences).toHaveLength(2);
+    expect(unitOf(planned[1].sentences[0]).id).not.toBe(unitOf(planned[1].sentences[1]).id);
+    expect(result.summary[1].sources).toEqual(planned[1].sentences.map(asSource));
+  });
+
+  it("validates the second span of a two-unit sentence too: a mismatch there throws CitationError and returns no summary", async () => {
+    const second = planned[1].sentences[1];
+    const tampered = second.replace("personally", "jointly");
+    expect(tampered).not.toBe(second);
+    const client = new SidecarModelClient(adhesion, { summaryQuote: { sentence: 1, span: 1, quote: tampered } });
+
+    const outcome = await analyse(adhesion.text, [], client).then(
+      (result) => ({ result }),
+      (error: unknown) => ({ error }),
+    );
+    expect(outcome).not.toHaveProperty("result");
+    const failure = (outcome as { error: unknown }).error as CitationError;
+    expect(failure).toBeInstanceOf(CitationError);
+    expect(failure.failures).toEqual([
+      {
+        index: 1,
+        findingType: "summary-sentence",
+        spanIndex: 1,
+        unitId: unitOf(second).id,
+        quote: tampered,
+        reason: "quote-mismatch",
+      },
+    ]);
+    expect(failure.passedCount).toBe(citedFindingCount - 1);
+    expect(JSON.stringify(outcome)).not.toContain(planned[0].text);
+  });
+
+  it("throws CitationError when a summary span cites a unit id that does not exist", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      payload.summary[0].sources[0].unitId = "u99999";
+      return payload;
+    });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(CitationError);
+    expect((failure as CitationError).failures).toEqual([
+      expect.objectContaining({ findingType: "summary-sentence", index: 0, spanIndex: 0, unitId: "u99999", reason: "unknown-unit" }),
+    ]);
+  });
+
+  it("names a failed summary span and a failed Risk flag together in one CitationError", async () => {
+    const client = new SidecarModelClient(adhesion, {
+      summaryQuote: { sentence: 0, span: 0, quote: `${planned[0].sentences[0]} ` },
+      tamper: (payload) => {
+        payload.riskFlags[0].quote = payload.riskFlags[0].quote.slice(1);
+        return payload;
+      },
+    });
+
+    const failure = (await analyse(adhesion.text, [], client).catch((error: unknown) => error)) as CitationError;
+    expect(failure).toBeInstanceOf(CitationError);
+    expect(failure.failures.map((item) => item.findingType).sort()).toEqual(["risk-flag", "summary-sentence"]);
+    expect(failure.passedCount).toBe(citedFindingCount - 2);
+  });
+
+  it("counts a summary sentence with both spans wrong as one failed finding, naming both spans", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      payload.summary[1].sources.forEach((span) => (span.quote = span.quote.toUpperCase()));
+      return payload;
+    });
+
+    const failure = (await analyse(adhesion.text, [], client).catch((error: unknown) => error)) as CitationError;
+    expect(failure).toBeInstanceOf(CitationError);
+    expect(failure.failures.map((item) => item.spanIndex)).toEqual([0, 1]);
+    expect(failure.passedCount).toBe(citedFindingCount - 1);
+  });
+
+  it("fails as malformed, not as a citation failure, when a summary sentence cites no span", async () => {
+    const client = new SidecarModelClient(adhesion, { summaryWithoutSpans: [1] });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect(failure).not.toBeInstanceOf(CitationError);
+    expect((failure as Error).message).toContain("Summary sentence #1");
+    expect((failure as Error).message).toContain("cites no span");
+  });
+
+  it("fails as malformed when a summary sentence has no sources list at all", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      delete (payload.summary[0] as { sources?: unknown }).sources;
+      return payload;
+    });
+
+    await expect(analyse(adhesion.text, [], client)).rejects.toBeInstanceOf(AnalysisResponseError);
+  });
+
+  it("withholds a summary sentence that needs facts about the Signer, leaving it out of the result entirely", async () => {
+    const client = new SidecarModelClient(adhesion, { signerFactsSummary: [1] });
+    const result = await analyse(adhesion.text, [], client);
+
+    expect(result.summary.map((sentence) => sentence.text)).toEqual([planned[0].text]);
+    const serialised = JSON.stringify(result);
+    expect(serialised).not.toContain(planned[1].text);
+    expect(serialised).not.toContain("needs-signer-facts");
+    expect(result.summary[0].sources).toEqual([asSource(planned[0].sentences[0])]);
+  });
+
+  it("still validates the spans of a withheld summary sentence", async () => {
+    const client = new SidecarModelClient(adhesion, {
+      signerFactsSummary: [1],
+      summaryQuote: { sentence: 1, span: 0, quote: "Not in the document." },
+    });
+
+    await expect(analyse(adhesion.text, [], client)).rejects.toBeInstanceOf(CitationError);
+  });
+
+  it("fails as malformed when every summary sentence is withheld, or the summary is empty", async () => {
+    for (const client of [
+      new SidecarModelClient(adhesion, { signerFactsSummary: [0, 1] }),
+      new SidecarModelClient(adhesion, (payload) => ({ ...payload, summary: [] })),
+    ]) {
+      const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(AnalysisResponseError);
+      expect((failure as Error).message).toContain("summary");
+    }
+  });
+
+  it("marks an inference summary sentence as inference", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      payload.summary[1].tier = "inference";
+      return payload;
+    });
+    const result = await analyse(adhesion.text, [], client);
+
+    expect(result.summary.map((sentence) => sentence.tier)).toEqual(["read-off", "inference"]);
+  });
+
+  it("fails the analysis when the model's answer has no summary list", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      delete (payload as Partial<typeof payload>).summary;
+      return payload;
+    });
+
+    await expect(analyse(adhesion.text, [], client)).rejects.toBeInstanceOf(AnalysisResponseError);
+  });
+
+  it("returns a grounded summary for the clean agreement, citing its own sentences", async () => {
+    const result = await analyse(clean.text, [], new SidecarModelClient(clean));
+
+    const cleanPlan = plannedSummary(clean);
+    expect(result.summary.map((sentence) => sentence.sources.map((source) => source.text))).toEqual(
+      cleanPlan.map((sentence) => sentence.sentences),
+    );
+    for (const source of result.summary.flatMap((sentence) => sentence.sources)) {
+      expect(clean.text.slice(source.start, source.end)).toBe(source.text);
+    }
+  });
+
+  it("asks the model for the summary in the same call, as a required list whose sentences require sources", async () => {
+    const client = new SidecarModelClient(adhesion);
+    await analyse(adhesion.text, [], client);
+
+    expect(client.requests).toHaveLength(1);
+    const schema = client.requests[0].schema as {
+      required: string[];
+      properties: {
+        summary: { items: { required: string[]; properties: { sources: { items: { required: string[] } } } } };
+      };
+    };
+    expect(schema.required).toContain("summary");
+    expect(schema.properties.summary.items.required).toEqual(expect.arrayContaining(["text", "tier", "sources"]));
+    expect(schema.properties.summary.items.properties.sources.items.required).toEqual(["unitId", "quote"]);
+  });
+
+  it("cannot express a summary sentence without sources, or with an empty sources list (checked by tsc)", () => {
+    // @ts-expect-error A summary sentence without sources is not a summary sentence.
+    const uncited: SummarySentence = { kind: "summary-sentence", tier: "read-off", text: "No source." };
+    const empty: SummarySentence = {
+      kind: "summary-sentence",
+      tier: "read-off",
+      text: "Empty sources.",
+      // @ts-expect-error The sources list is never empty.
+      sources: [],
+    };
+    expect("sources" in uncited).toBe(false);
+    expect(empty.sources).toHaveLength(0);
   });
 });
