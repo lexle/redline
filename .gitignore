@@ -97,6 +97,7 @@ desktop.ini
 
 # ---------- Local agent / scratch ----------
 .claude/settings.local.json
+.impeccable/review/
 
 # ---------- Excluded: empty nested git repo (no commits, no files) ----------
 # "Project Redline/" contains only its own .git dir and a .DS_Store.

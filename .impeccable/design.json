@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-11T18:11:35Z",
+  "title": "Design System: Redline",
+  "extensions": {
+    "colorMeta": {
+      "desk": { "role": "neutral", "displayName": "Slate Felt", "canonical": "oklch(39.3% 0.013 235.2)", "tonalRamp": ["oklch(15% 0.013 235.2)", "oklch(26% 0.013 235.2)", "oklch(37% 0.013 235.2)", "oklch(48% 0.013 235.2)", "oklch(60% 0.013 235.2)", "oklch(71% 0.013 235.2)", "oklch(83% 0.013 235.2)", "oklch(95% 0.013 235.2)"] },
+      "desk-deep": { "role": "neutral", "displayName": "Deep Felt", "canonical": "oklch(35.1% 0.012 232.7)", "tonalRamp": ["oklch(15% 0.012 232.7)", "oklch(26% 0.012 232.7)", "oklch(37% 0.012 232.7)", "oklch(48% 0.012 232.7)", "oklch(60% 0.012 232.7)", "oklch(71% 0.012 232.7)", "oklch(83% 0.012 232.7)", "oklch(95% 0.012 232.7)"] },
+      "desk-ink": { "role": "neutral", "displayName": "Desk White", "canonical": "#ffffff", "tonalRamp": ["oklch(15% 0 0)", "oklch(26% 0 0)", "oklch(37% 0 0)", "oklch(48% 0 0)", "oklch(60% 0 0)", "oklch(71% 0 0)", "oklch(83% 0 0)", "oklch(95% 0 0)"] },
+      "desk-ink-2": { "role": "neutral", "displayName": "Fog", "canonical": "oklch(85.2% 0.011 219.6)", "tonalRamp": ["oklch(15% 0.011 219.6)", "oklch(26% 0.011 219.6)", "oklch(37% 0.011 219.6)", "oklch(48% 0.011 219.6)", "oklch(60% 0.011 219.6)", "oklch(71% 0.011 219.6)", "oklch(83% 0.011 219.6)", "oklch(95% 0.011 219.6)"] },
+      "desk-card": { "role": "neutral", "displayName": "Felt Card", "canonical": "rgb(255 255 255 / 0.06)" },
+      "desk-card-hover": { "role": "neutral", "displayName": "Felt Card Hover", "canonical": "rgb(255 255 255 / 0.1)" },
+      "desk-hairline": { "role": "neutral", "displayName": "Desk Hairline", "canonical": "rgb(255 255 255 / 0.14)" },
+      "paper": { "role": "neutral", "displayName": "Paper", "canonical": "#ffffff", "tonalRamp": ["oklch(15% 0 0)", "oklch(26% 0 0)", "oklch(37% 0 0)", "oklch(48% 0 0)", "oklch(60% 0 0)", "oklch(71% 0 0)", "oklch(83% 0 0)", "oklch(95% 0 0)"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "oklch(21.1% 0.006 236.9)", "tonalRamp": ["oklch(15% 0.006 236.9)", "oklch(26% 0.006 236.9)", "oklch(37% 0.006 236.9)", "oklch(48% 0.006 236.9)", "oklch(60% 0.006 236.9)", "oklch(71% 0.006 236.9)", "oklch(83% 0.006 236.9)", "oklch(95% 0.006 236.9)"] },
+      "ink-2": { "role": "neutral", "displayName": "Ink Grey", "canonical": "oklch(43.7% 0.013 235.1)", "tonalRamp": ["oklch(15% 0.013 235.1)", "oklch(26% 0.013 235.1)", "oklch(37% 0.013 235.1)", "oklch(48% 0.013 235.1)", "oklch(60% 0.013 235.1)", "oklch(71% 0.013 235.1)", "oklch(83% 0.013 235.1)", "oklch(95% 0.013 235.1)"] },
+      "rule": { "role": "neutral", "displayName": "Paper Rule", "canonical": "oklch(89.5% 0.006 239.8)", "tonalRamp": ["oklch(15% 0.006 239.8)", "oklch(26% 0.006 239.8)", "oklch(37% 0.006 239.8)", "oklch(48% 0.006 239.8)", "oklch(60% 0.006 239.8)", "oklch(71% 0.006 239.8)", "oklch(83% 0.006 239.8)", "oklch(95% 0.006 239.8)"] },
+      "flag": { "role": "primary", "displayName": "Flag Magenta", "canonical": "oklch(55.8% 0.226 359.7)", "tonalRamp": ["oklch(15% 0.226 359.7)", "oklch(26% 0.226 359.7)", "oklch(37% 0.226 359.7)", "oklch(48% 0.226 359.7)", "oklch(60% 0.226 359.7)", "oklch(71% 0.226 359.7)", "oklch(83% 0.226 359.7)", "oklch(95% 0.226 359.7)"] },
+      "on-flag": { "role": "primary", "displayName": "On Flag White", "canonical": "#ffffff" },
+      "tape": { "role": "primary", "displayName": "Laying Tape", "canonical": "rgb(236 26 140 / 0.26)", "tonalRamp": ["oklch(15% 0.245 355.8)", "oklch(26% 0.245 355.8)", "oklch(37% 0.245 355.8)", "oklch(48% 0.245 355.8)", "oklch(60% 0.245 355.8)", "oklch(71% 0.245 355.8)", "oklch(83% 0.245 355.8)", "oklch(95% 0.245 355.8)"] },
+      "tape-clear": { "role": "primary", "displayName": "Clear Tape End", "canonical": "rgb(236 26 140 / 0.22)" },
+      "focus": { "role": "tertiary", "displayName": "Reader's Cyan", "canonical": "oklch(80.9% 0.108 226.2)", "tonalRamp": ["oklch(15% 0.108 226.2)", "oklch(26% 0.108 226.2)", "oklch(37% 0.108 226.2)", "oklch(48% 0.108 226.2)", "oklch(60% 0.108 226.2)", "oklch(71% 0.108 226.2)", "oklch(83% 0.108 226.2)", "oklch(95% 0.108 226.2)"] },
+      "focus-on-paper": { "role": "tertiary", "displayName": "Reader's Cyan on Paper", "canonical": "oklch(54.5% 0.118 236.2)", "tonalRamp": ["oklch(15% 0.118 236.2)", "oklch(26% 0.118 236.2)", "oklch(37% 0.118 236.2)", "oklch(48% 0.118 236.2)", "oklch(60% 0.118 236.2)", "oklch(71% 0.118 236.2)", "oklch(83% 0.118 236.2)", "oklch(95% 0.118 236.2)"] },
+      "selection": { "role": "tertiary", "displayName": "Reader's Highlight", "canonical": "rgb(108 207 246 / 0.38)" }
+    },
+    "reservedTokens": [
+      { "name": "--tape-on-desk", "value": "rgb(236 26 140 / 0.42)", "status": "Declared in app/globals.css; no built consumer. Stronger tape intended to read against the felt. Not established until a surface uses it." }
+    ],
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Hero headline only. Archivo condensed, balanced wrap." },
+      "display-close": { "displayName": "Display Close", "purpose": "The closing question above the final CTA." },
+      "headline": { "displayName": "Headline", "purpose": "Section headings on the desk." },
+      "title": { "displayName": "Flag Title", "purpose": "Risk flag titles in the ranked list; a real button." },
+      "list-heading": { "displayName": "List Heading", "purpose": "The heading above the ranked list, in Fog." },
+      "wordmark": { "displayName": "Wordmark", "purpose": "Redline's name, expanded width." },
+      "numeral": { "displayName": "Rank Numeral", "purpose": "Rank numbers on ranked-list flag tips." },
+      "numeral-tab": { "displayName": "Tab Numeral", "purpose": "Rank numbers on page-tab tips." },
+      "cta": { "displayName": "CTA Label", "purpose": "The CTA flag label." },
+      "lede": { "displayName": "Lede", "purpose": "One supporting line under the hero headline." },
+      "body": { "displayName": "Body", "purpose": "Proof prose (max 44ch) and limits slip items (lh 1.55)." },
+      "body-sm": { "displayName": "Body Small", "purpose": "The plain-English note in a pulled flag; the line under the list." },
+      "caption": { "displayName": "Caption", "purpose": "Figure captions, fineprint (max 36ch), footer." },
+      "meta": { "displayName": "Meta", "purpose": "\"Quoted word for word from section N\" in Ink Grey." },
+      "doc-page": { "displayName": "Document Page", "purpose": "Text on the scaled sample page; 10.5px at 760px and below. A picture of a page, not a reading size." },
+      "doc-quote": { "displayName": "Source Sentence", "purpose": "A Source sentence repeated in the ranked list, in curly quotes." },
+      "doc-strip": { "displayName": "Source Sentence, Large", "purpose": "One Source sentence set large on the proof strip." }
+    },
+    "shadows": [
+      { "name": "paper-lift", "value": "0 1px 1px rgb(0 0 0 / 0.15), 0 14px 30px -10px rgb(0 0 0 / 0.5), 0 40px 70px -30px rgb(0 0 0 / 0.45)", "purpose": "The sample page and the proof strip lifting off the felt." },
+      { "name": "slip-lift", "value": "0 1px 1px rgb(0 0 0 / 0.15), 0 14px 30px -12px rgb(0 0 0 / 0.5)", "purpose": "The smaller limits slip." },
+      { "name": "tab-tip-rest", "value": "0 1px 2px rgb(0 0 0 / 0.3)", "purpose": "Page-tab tip at rest." },
+      { "name": "tab-tip-hover", "value": "0 2px 5px rgb(0 0 0 / 0.34)", "purpose": "Page-tab tip on hover." },
+      { "name": "tab-tip-pulled", "value": "0 3px 8px rgb(0 0 0 / 0.38)", "purpose": "The pulled page-tab tip." },
+      { "name": "cta-rest", "value": "0 2px 4px rgb(0 0 0 / 0.25), 0 10px 24px -10px rgb(0 0 0 / 0.55)", "purpose": "The CTA flag at rest." },
+      { "name": "cta-hover", "value": "0 3px 6px rgb(0 0 0 / 0.28), 0 14px 28px -10px rgb(0 0 0 / 0.6)", "purpose": "The CTA flag as it slides on hover." }
+    ],
+    "motion": [
+      { "name": "ease", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "The only easing; every transition uses it." },
+      { "name": "tab-pull", "value": "300ms, translateX 10px (4px at 760px and below)", "purpose": "A pulled page tab slides out." },
+      { "name": "tab-nudge", "value": "300ms, 4px hover / 7px press (2px at 760px and below)", "purpose": "Unpulled tab response to pointer." },
+      { "name": "tape-wipe", "value": "380ms, background-size 0% to 100%, left to right", "purpose": "Tape lays across the cited line when a flag is pulled; the unpulled underline fades out in step." },
+      { "name": "strip-wipe", "value": "700ms, background-size 0% to 100%, once at 50% visibility", "purpose": "Tape wipes over the proof strip's Source sentence on scroll-in." },
+      { "name": "tab-stick", "value": "520ms, opacity 0 to 1 and 24px slide, 120ms stagger per tab", "purpose": "Tabs stick onto the page edge in rank order on load." },
+      { "name": "cta-slide", "value": "240ms, translateX 6px hover / 2px active", "purpose": "The CTA flag slides like a pulled tab." },
+      { "name": "card-state", "value": "220ms, background-color and color", "purpose": "Ranked flag card hover and pulled state." },
+      { "name": "reduced-motion", "value": "prefers-reduced-motion: reduce removes transitions and tab-stick", "purpose": "Every state appears at its end." }
+    ],
+    "breakpoints": [
+      { "name": "wide", "value": "above 1180px", "purpose": "Three-column hero: pitch, 480px page, ranked list." },
+      { "name": "medium", "value": "1180px", "purpose": "Pitch spans the top; page and list side by side." },
+      { "name": "compact", "value": "760px", "purpose": "Single column; page cropped to flagged sections under a pinked cut edge; narrower tabs." }
+    ],
+    "operateStatus": "The signed-in app shell (.impeccable/surfaces/app-app-layout-tsx.md) is a brief only. Outlined Missing protection flags, quieter minor-tier tabs, Red lines, Library stacks, inputs and navigation are not yet built and have no tokens."
+  },
+  "components": [
+    {
+      "name": "CTA Flag",
+      "kind": "button",
+      "refersTo": "cta-flag",
+      "description": "The primary action, built as a flag: clear end plus magenta tip. Slides right on hover.",
+      "html": "<a class=\"ds-cta\" href=\"#\">Try it on a document</a>",
+      "css": ".ds-cta { display: inline-flex; align-items: center; min-height: 52px; padding-right: 24px; background: var(--flag, #d1006f); color: #ffffff; font-family: var(--font-ui, Archivo, system-ui, sans-serif); font-size: 1.0625rem; font-weight: 700; text-decoration: none; box-shadow: 0 2px 4px rgb(0 0 0 / 0.25), 0 10px 24px -10px rgb(0 0 0 / 0.55); transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 240ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-cta::before { content: \"\"; align-self: stretch; width: 18px; margin-right: 20px; background: rgb(255 255 255 / 0.3); } .ds-cta:hover { transform: translateX(6px); box-shadow: 0 3px 6px rgb(0 0 0 / 0.28), 0 14px 28px -10px rgb(0 0 0 / 0.6); } .ds-cta:active { transform: translateX(2px); } .ds-cta:focus-visible { outline: 2px solid var(--focus, #6ccff6); outline-offset: 3px; } @media (prefers-reduced-motion: reduce) { .ds-cta { transition: none; } }"
+    },
+    {
+      "name": "Page Tab",
+      "kind": "custom",
+      "refersTo": "page-tab",
+      "description": "A numbered flag stuck on the page edge at its cited line. Pulled state slides 10px out.",
+      "html": "<div class=\"ds-tab-demo\"><span class=\"ds-tab\"><span class=\"ds-tab-clear\"></span><span class=\"ds-tab-tip\">2</span></span><span class=\"ds-tab is-pulled\"><span class=\"ds-tab-clear\"></span><span class=\"ds-tab-tip\">1</span></span></div>",
+      "css": ".ds-tab-demo { display: grid; gap: 12px; padding: 16px 40px 16px 0; background: var(--paper, #ffffff); width: 120px; } .ds-tab { display: flex; width: 54px; height: 24px; margin-left: 82px; cursor: pointer; transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-tab-clear { width: 16px; background: var(--tape-clear, rgb(236 26 140 / 0.22)); } .ds-tab-tip { display: grid; flex: 1; place-items: center; background: var(--flag, #d1006f); color: #ffffff; font-family: var(--font-ui, Archivo, system-ui, sans-serif); font-size: 12px; font-weight: 800; font-stretch: 110%; line-height: 1; box-shadow: 0 1px 2px rgb(0 0 0 / 0.3); transition: box-shadow 300ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-tab:not(.is-pulled):hover { transform: translateX(4px); } .ds-tab:hover .ds-tab-tip { box-shadow: 0 2px 5px rgb(0 0 0 / 0.34); } .ds-tab.is-pulled { transform: translateX(10px); } .ds-tab.is-pulled .ds-tab-tip { box-shadow: 0 3px 8px rgb(0 0 0 / 0.38); } @media (prefers-reduced-motion: reduce) { .ds-tab, .ds-tab-tip { transition: none; } }"
+    },
+    {
+      "name": "Taped Line",
+      "kind": "custom",
+      "refersTo": "taped-line",
+      "description": "The signature: a flagged Source sentence carries a thin magenta underline until pulled, then tape wipes across it left to right. Hover to preview.",
+      "html": "<p class=\"ds-doc\"><b>3. Term and Termination.</b> Either party may end this Agreement by giving fourteen (14) days' written notice. <mark class=\"ds-mark\">If Contractor ends this Agreement for any reason before the Project is complete, Contractor shall be liable for any and all costs Company incurs to complete the Project.</mark></p>",
+      "css": ".ds-doc { max-width: 420px; margin: 0; padding: 24px 28px; background: var(--paper, #ffffff); color: var(--ink, #16191b); font-family: var(--font-doc, Tinos, \"Times New Roman\", Times, serif); font-size: 14px; line-height: 1.55; } .ds-mark { color: inherit; background: linear-gradient(rgb(236 26 140 / 0.26), rgb(236 26 140 / 0.26)) no-repeat 0 0 / 0% 100%; text-decoration: underline 1.5px rgb(209 0 111 / 0.6); text-underline-offset: 3px; transition: background-size 380ms cubic-bezier(0.16, 1, 0.3, 1), text-decoration-color 380ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-doc:hover .ds-mark, .ds-mark[data-active] { background-size: 100% 100%; text-decoration-color: transparent; } @media (prefers-reduced-motion: reduce) { .ds-mark { transition: none; } }"
+    },
+    {
+      "name": "Ranked Flag Card",
+      "kind": "card",
+      "refersTo": "flag-card",
+      "description": "A Risk flag in the ranked list: magenta rank tip, title, Source sentence in the document face. The pulled card turns to paper.",
+      "html": "<ol class=\"ds-flags\"><li class=\"ds-flag is-pulled\"><span class=\"ds-flag-tip\">1</span><div class=\"ds-flag-body\"><button type=\"button\" class=\"ds-flag-title\" aria-expanded=\"true\">Leave early and you pay to finish the job</button><blockquote class=\"ds-flag-quote\">&ldquo;If Contractor ends this Agreement for any reason before the Project is complete, Contractor shall be liable for any and all costs Company incurs to complete the Project.&rdquo;</blockquote><div class=\"ds-flag-detail\"><p>If you end the contract before the project is done, for any reason, you owe whatever it costs them to finish it.</p><p class=\"ds-flag-meta\">Quoted word for word from section 3.</p></div></div></li><li class=\"ds-flag\"><span class=\"ds-flag-tip\">2</span><div class=\"ds-flag-body\"><button type=\"button\" class=\"ds-flag-title\" aria-expanded=\"false\">For two years, you can't work for any of their clients</button><blockquote class=\"ds-flag-quote\">&ldquo;For twenty-four (24) months after this Agreement ends, Contractor shall not provide services to any client or customer of Company.&rdquo;</blockquote></div></li></ol>",
+      "css": ".ds-flags { display: grid; gap: 10px; max-width: 300px; margin: 0; padding: 16px; list-style: none; background: var(--desk, #3f474c); color: var(--desk-ink, #ffffff); font-family: var(--font-ui, Archivo, system-ui, sans-serif); } .ds-flag { display: grid; grid-template-columns: 40px minmax(0, 1fr); background: rgb(255 255 255 / 0.06); cursor: pointer; transition: background-color 220ms cubic-bezier(0.16, 1, 0.3, 1), color 220ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-flag:hover { background: rgb(255 255 255 / 0.1); } .ds-flag.is-pulled { background: var(--paper, #ffffff); color: var(--ink, #16191b); cursor: default; } .ds-flag-tip { display: flex; justify-content: center; padding-top: 14px; background: var(--flag, #d1006f); color: #ffffff; font-size: 1.125rem; font-weight: 800; font-stretch: 112%; line-height: 1; } .ds-flag-body { min-width: 0; padding: 12px 16px 14px; } .ds-flag-title { display: block; width: 100%; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; font: inherit; font-size: 1rem; font-weight: 700; line-height: 1.3; text-align: left; } .ds-flag-title:focus-visible { outline: 2px solid var(--focus, #6ccff6); outline-offset: 3px; } .ds-flag.is-pulled .ds-flag-title:focus-visible { outline-color: var(--focus-on-paper, #0079ab); } .ds-flag-quote { margin: 8px 0 0; color: var(--desk-ink-2, #c7d0d3); font-family: var(--font-doc, Tinos, \"Times New Roman\", Times, serif); font-size: 0.9375rem; line-height: 1.45; } .ds-flag.is-pulled .ds-flag-quote { color: var(--ink-2, #4b5358); } .ds-flag-detail { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--rule, #d9dde0); font-size: 0.9375rem; line-height: 1.5; } .ds-flag-detail p { margin: 0; } .ds-flag-meta { margin-top: 8px !important; color: var(--ink-2, #4b5358); font-size: 0.8125rem; } @media (prefers-reduced-motion: reduce) { .ds-flag { transition: none; } }"
+    },
+    {
+      "name": "Paper Page",
+      "kind": "card",
+      "refersTo": "paper-page",
+      "description": "The Document as a Letter-proportion sheet on the felt, in the document face, with the paper lift.",
+      "html": "<div class=\"ds-page\"><p class=\"ds-page-head\"><span>Sample</span><span>Page 1</span></p><p class=\"ds-page-title\">Independent Contractor Agreement</p><p class=\"ds-page-clause\"><b>1. Services.</b> Contractor will perform the services described in Exhibit A (the \"Services\"). Contractor controls the manner and means of performing the Services.</p><p class=\"ds-page-clause\"><b>2. Fees and Payment.</b> Company will pay each undisputed invoice within thirty (30) days of receiving it.</p></div>",
+      "css": ".ds-page { width: 320px; aspect-ratio: 8.5 / 11; padding: 8% 10% 9%; background: var(--paper, #ffffff); color: var(--ink, #16191b); font-family: var(--font-doc, Tinos, \"Times New Roman\", Times, serif); font-size: 12px; line-height: 1.55; box-shadow: 0 1px 1px rgb(0 0 0 / 0.15), 0 14px 30px -10px rgb(0 0 0 / 0.5), 0 40px 70px -30px rgb(0 0 0 / 0.45); } .ds-page-head { display: flex; justify-content: space-between; margin: 0 0 2.4em; color: var(--ink-2, #4b5358); font-size: 0.8em; letter-spacing: 0.04em; } .ds-page-title { margin: 0 0 1.5em; font-size: 1.15em; font-weight: 700; letter-spacing: 0.06em; text-align: center; text-transform: uppercase; } .ds-page-clause { margin: 0 0 0.9em; }"
+    },
+    {
+      "name": "Proof Strip",
+      "kind": "card",
+      "refersTo": "proof-strip",
+      "description": "One Source sentence set large on its own strip of paper; its tape wipes once on scroll-in. Hover to preview.",
+      "html": "<figure class=\"ds-strip\"><blockquote class=\"ds-strip-quote\"><mark class=\"ds-strip-mark\">If Contractor ends this Agreement for any reason before the Project is complete, Contractor shall be liable for any and all costs Company incurs to complete the Project.</mark></blockquote><figcaption class=\"ds-strip-caption\">Section 3 of the sample agreement</figcaption></figure>",
+      "css": ".ds-strip { max-width: 560px; margin: 0; padding: clamp(24px, 3vw, 40px) clamp(24px, 3.5vw, 48px); background: var(--paper, #ffffff); color: var(--ink, #16191b); box-shadow: 0 1px 1px rgb(0 0 0 / 0.15), 0 14px 30px -10px rgb(0 0 0 / 0.5), 0 40px 70px -30px rgb(0 0 0 / 0.45); } .ds-strip-quote { margin: 0; font-family: var(--font-doc, Tinos, \"Times New Roman\", Times, serif); font-size: clamp(1.5rem, 1rem + 1.6vw, 2.5rem); line-height: 1.35; } .ds-strip-mark { color: inherit; background: linear-gradient(rgb(236 26 140 / 0.26), rgb(236 26 140 / 0.26)) no-repeat 0 0 / 0% 100%; transition: background-size 700ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-strip:hover .ds-strip-mark, .ds-strip-mark[data-seen] { background-size: 100% 100%; } .ds-strip-caption { margin-top: 20px; color: var(--ink-2, #4b5358); font-family: var(--font-ui, Archivo, system-ui, sans-serif); font-size: 0.875rem; } @media (prefers-reduced-motion: reduce) { .ds-strip-mark { transition: none; } }"
+    },
+    {
+      "name": "Paper Slip",
+      "kind": "card",
+      "refersTo": "paper-slip",
+      "description": "A smaller paper sheet holding a ruled list, with the shallower slip lift.",
+      "html": "<ul class=\"ds-slip\"><li>It won't tell you whether to sign. That depends on things the agreement doesn't say, like how much you need the work.</li><li>Nothing here is legal advice. Redline explains what the agreement says; what to do about it is your call, or a lawyer's.</li></ul>",
+      "css": ".ds-slip { max-width: 520px; margin: 0; padding: 8px 32px; background: var(--paper, #ffffff); color: var(--ink, #16191b); list-style: none; font-family: var(--font-ui, Archivo, system-ui, sans-serif); box-shadow: 0 1px 1px rgb(0 0 0 / 0.15), 0 14px 30px -12px rgb(0 0 0 / 0.5); } .ds-slip li { padding-block: 20px; border-bottom: 1px solid var(--rule, #d9dde0); font-size: 1.0625rem; line-height: 1.55; } .ds-slip li:last-child { border-bottom: 0; }"
+    },
+    {
+      "name": "Wordmark",
+      "kind": "nav",
+      "refersTo": "wordmark",
+      "description": "Redline's name in expanded Archivo, followed by its flag: clear end, magenta tip. The masthead's only navigation.",
+      "html": "<a class=\"ds-wordmark\" href=\"#\">Redline<span class=\"ds-wordmark-flag\" aria-hidden=\"true\"></span></a>",
+      "css": ".ds-wordmark { display: inline-flex; align-items: center; gap: 10px; color: var(--desk-ink, #ffffff); text-decoration: none; font-family: var(--font-ui, Archivo, system-ui, sans-serif); font-size: 1.375rem; font-weight: 800; font-stretch: 112%; letter-spacing: -0.015em; } .ds-wordmark:focus-visible { outline: 2px solid var(--focus, #6ccff6); outline-offset: 3px; } .ds-wordmark-flag { display: block; width: 26px; height: 12px; background: linear-gradient(90deg, rgb(236 26 140 / 0.22) 0 9px, var(--flag, #d1006f) 9px); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Page Flags",
+    "overview": "The Document is a printed page lying on a desk, and Redline's findings are flag tabs stuck on the exact lines they come from, numbered by rank. A slate felt blotter owns the ground. On it sit bright white paper objects set in a Times-style contract face. Translucent magenta flag tape is the only loud material, and it always points at a line. Redline speaks in Archivo; the Document speaks in Tinos. Cyan belongs to the reader alone: focus and selection.\n\nThe system is built so that a claim can be checked. Every Risk flag has a physical twin on the page: a numbered tab at the edge of the cited line, and a stretch of tape that lays across the Source sentence when the flag is pulled. The ranked list beside the page repeats that Source sentence in the document face, so the Signer can read the same words in both places. Density is calm: one page, one short ranked list, and wide desk around them.\n\nThe world refuses the category default of a headline next to a floating dashboard screenshot. It also rules out legal-tech SaaS styling, scare tactics, a chatbot look, and law-firm gravitas (surface brief, confirmed by the user).",
+    "keyCharacteristics": [
+      "Slate felt desk ground, darkened by a fixed noise layer and never lightened.",
+      "White Letter-proportion paper with square corners and a soft three-layer lift.",
+      "Magenta appears only as flags: the opaque tip, the translucent tape, the clear end.",
+      "Two voices: Archivo (variable, wdth axis) for Redline, Tinos for the Document.",
+      "Cyan is reserved for the reader's own marks.",
+      "One signature motion: pull a flag, and its tape wipes across the cited line."
+    ],
+    "rules": [
+      { "name": "The Magenta Is a Flag Rule", "body": "Magenta appears only as flag material: tip, tape, clear end, and the 1.5px underline that marks a flagged line that has not been pulled. Headlines, links and body text are never set in magenta, and it is never used as general-purpose emphasis.", "section": "colors" },
+      { "name": "The Reader's Cyan Rule", "body": "Cyan marks only what the reader did: focus and selection. Redline never uses it for its own content.", "section": "colors" },
+      { "name": "The Felt Only Darkens Rule", "body": "Both felt layers are black noise at low alpha, so the desk's brightest point is the base desk color. Every desk contrast figure is measured against that base. A felt layer that lightens, or a desk-card veil above 10% white, breaks the secondary-text floor (Fog on a hovered card is already 4.52:1).", "section": "colors" },
+      { "name": "The Two Voices Rule", "body": "Tinos sets only words that come from the Document: the page itself, Source sentences, and the Document's own title and running head. Everything Redline writes, including notes, captions, titles and \"Section 3 of the sample agreement\", is set in Archivo.", "section": "typography" },
+      { "name": "The Two Widths Rule", "body": "Archivo runs condensed (wdth 86) for display and section headings, expanded (wdth 110 to 112) for the wordmark and rank numerals, and at normal width for anything read as prose.", "section": "typography" },
+      { "name": "The Page Is a Picture Rule", "body": "The page's 12px and 10.5px sizes come from scaling a Letter page down; they are not a text size for reading. Every Source sentence on the page is repeated in the ranked list at 0.9375rem or larger. Never set readable content at page scale anywhere else.", "section": "typography" },
+      { "name": "The Page Scale Rule", "body": "At 1440px the sample page renders 480px wide at Letter proportion (8.5 / 11), about 60% of life size. At full size, the page and the ranked list could not share a 900px first viewport. The page stays as large as the viewport allows beside the list; shrinking it further to make room for anything else is a regression.", "section": "layout" },
+      { "name": "The Paper Lifts, Tape Lies Flat Rule", "body": "Paper objects cast the paper or slip lift. Tape, clear ends and desk cards have no shadow. Only a flag tip may lift, and only as it is pulled or hovered.", "section": "elevation" },
+      { "name": "The One Pulled Flag Rule", "body": "Exactly one flag is pulled at a time, and flag 1 starts pulled. A pulled flag shows the same state in three places at once: its tab out, its tape on the line, and its card turned to paper.", "section": "components" },
+      { "name": "The Verbatim Rule", "body": "A flag's Source sentence must appear word for word in the Document it sits on. The sample module throws at build time when a sample flag's sentence is not an exact substring of its clause (ADR-0001). No component may render a Risk flag without its Source sentence.", "section": "components" }
+    ],
+    "dos": [
+      "Do put every flag on a line: a page tab at the cited line's first-line midpoint, tape across the Source sentence when pulled.",
+      "Do repeat each Source sentence in the ranked list in Tinos, in quotation marks, word for word.",
+      "Do keep the sample page as large as the first viewport allows beside the ranked list (480px at 1440), and crop it to the flagged sections under a pinked cut edge at 760px and below.",
+      "Do use the house ease, cubic-bezier(0.16, 1, 0.3, 1), for every transition, and show end states under reduced motion.",
+      "Do measure desk contrast against the flat base desk color, and keep Fog on hovered cards at or above 4.5:1.",
+      "Do switch the focus outline to cyan on paper inside white objects.",
+      "Do run every user-facing line, including labels, empty states and errors, through the humanizer skill before committing it (CLAUDE.md, Copy). Copy that reads as model-written is a defect."
+    ],
+    "donts": [
+      "Don't use magenta for anything other than flag material: no magenta headlines, links, icons or emphasis.",
+      "Don't use cyan for Redline's own content; it belongs to focus and selection.",
+      "Don't set Redline's own words in Tinos, or the Document's words in Archivo.",
+      "Don't round corners on paper, flags, cards or the CTA.",
+      "Don't give tape a shadow, or give paper a hard offset shadow.",
+      "Don't add a felt layer that lightens the desk, or raise the desk-card veil above 10% white.",
+      "Don't show a Risk flag, a tab or tape without its verbatim Source sentence.",
+      "Don't put a Missing protection on the page; it cites nothing, so it gets no tab and no tape.",
+      "Don't set readable content at the page's scaled-down size outside the page picture."
+    ]
+  }
+}
