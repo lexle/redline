@@ -60,3 +60,10 @@ misread.
 
 - Issue tracker, triage labels, and domain-doc layout: see `docs/agents/`.
 - Grilling skills (`/grill-me`, `/grilling`): always ask with selectable options.
+
+## Copy
+
+- All copy a user reads in this product, meaning the landing page, UI labels,
+  error messages and empty states, has to be run through the humanizer skill
+  before it is committed. Copy that reads as though a model wrote it is a
+  defect, not a matter of taste.
