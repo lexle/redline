@@ -19,7 +19,7 @@ export const ANALYSIS_SCHEMA: JsonSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["unitId", "quote", "title", "claims", "severityBand", "rank"],
+        required: ["unitId", "quote", "title", "claims", "severityBand", "rank", "counterOffer"],
         properties: {
           unitId: { type: "string", description: "The id of the one sentence unit this flag comes from, e.g. u12." },
           quote: { type: "string", description: "That unit's text, copied character for character." },
@@ -45,6 +45,11 @@ export const ANALYSIS_SCHEMA: JsonSchema = {
           },
           severityBand: { type: "string", enum: [...SEVERITY_BANDS] },
           rank: { type: "integer", description: "1 is the flag most likely to cost this Signer." },
+          counterOffer: {
+            type: "string",
+            description:
+              "Replacement clause language for the cited sentence, written so the Signer could paste it into an email to the other side. Contract wording only, never advice. Never empty.",
+          },
         },
       },
     },
@@ -72,6 +77,14 @@ Claims:
   - "needs-signer-facts": whether it is true depends on facts about the Signer you do not have, such as their jurisdiction, industry or bargaining leverage, e.g. whether a court where they live would enforce the clause. Tag such a claim honestly. The product never shows it.
 - Every flag starts with at least one read-off claim.
 - Never tell the Signer what they should legally do: no "you should", "you must", "sign", "don't sign", "negotiate", "consult a lawyer" or similar. Explain what the sentence does; do not advise, and do not present this as legal advice.
+
+Counter-offers:
+- Every flag carries a "counterOffer": replacement language for the cited sentence that the Signer could paste into an email to the other side. Never leave it empty.
+- Write it as clause wording that could stand in the document in place of the cited sentence, using the document's own names for the parties (e.g. "the Contractor", "the Client"). It changes what the cited sentence does to the Signer, such as adding a cap, an exit or a carve-out.
+- Replacement language only. No advice, no explanation, no instructions to the Signer, no "you should" or "consider", no greeting or sign-off.
+- Rely only on what the cited sentence says. Do not assert anything else about the document, and do not refer to other sections by number unless the cited sentence names them.
+- Do not invent facts about the Signer, their business, their jurisdiction or their fees. Where the wording needs a figure or date the document does not give, leave a bracketed blank such as "[amount]".
+
 - If no sentence meets the test, return an empty riskFlags array. A clean document is a real result.`;
 
 export function buildAnalysisRequest(units: readonly SentenceUnit[], redLines: readonly RedLine[]): JsonCompletionRequest {

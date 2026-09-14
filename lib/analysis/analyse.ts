@@ -63,6 +63,7 @@ interface RawRiskFlag {
   claims: RawClaim[];
   severityBand: SeverityBand;
   rank: number;
+  counterOffer: string;
 }
 
 export async function analyse(
@@ -135,6 +136,7 @@ export async function analyse(
     title: raw.title,
     claims: shown as [Claim, ...Claim[]],
     source: { start: unit.start, end: unit.end, text: documentText.slice(unit.start, unit.end) },
+    counterOffer: raw.counterOffer.trim(),
   }));
 
   return { riskFlags };
@@ -165,6 +167,12 @@ function readRiskFlags(response: unknown): RawRiskFlag[] {
     }
     if (!SEVERITY_BANDS.includes(flag?.severityBand as SeverityBand)) problems.push("severityBand is not high or medium");
     if (typeof flag?.rank !== "number" || !Number.isFinite(flag.rank)) problems.push("rank is not a number");
+    // A Risk flag without its Counter-offer is a failed generation, never a flag shown without one.
+    if (typeof flag?.counterOffer !== "string") {
+      problems.push("counterOffer is missing");
+    } else if (flag.counterOffer.trim() === "") {
+      problems.push("counterOffer is blank");
+    }
     if (problems.length > 0) {
       throw new AnalysisResponseError(`Risk flag #${index} in the model's answer is malformed: ${problems.join(", ")}.`);
     }

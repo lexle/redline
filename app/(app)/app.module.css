@@ -287,6 +287,64 @@
   line-height: 1.4;
 }
 
+/* Counter-offer: Redline's drafted words, so Archivo, never Tinos. */
+.counterOffer {
+  margin-top: 12px;
+  padding: 10px 12px 12px;
+  border: 1px solid rgb(255 255 255 / 0.14);
+}
+
+.counterOfferHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.counterOfferHeading {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.copyButton {
+  min-width: 76px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgb(255 255 255 / 0.28);
+  border-radius: 0;
+  background: transparent;
+  color: var(--desk-ink);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 180ms var(--ease), color 180ms var(--ease);
+}
+
+.copyButton:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.copyButton:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.copyButton[data-state="copied"] {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.counterOfferText {
+  margin: 8px 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 760px) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
@@ -300,6 +358,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .fileButton,
+  .copyButton,
   .flag {
     transition: none;
   }

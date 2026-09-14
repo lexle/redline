@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { AnalyseFailureCode, AnalyseRequestBody, AnalyseResponseBody } from "../../../lib/analysis/api";
 import type { AnalysisResult, SeverityBand } from "../../../lib/analysis/types";
@@ -182,11 +182,54 @@ function RiskFlagList({ fileName, result }: { fileName: string; result: Analysis
                   <p>“{flag.source.text}”</p>
                 </blockquote>
                 <p className={styles.meta}>Quoted word for word from your document</p>
+                <CounterOffer text={flag.counterOffer} rank={flag.rank} />
               </div>
             </li>
           ))}
         </ol>
       )}
     </div>
+  );
+}
+
+type CopyState = "idle" | "copied" | "failed";
+
+/** Redline's drafted replacement wording for one flag, set in Archivo because it is not the Document's text. */
+function CounterOffer({ text, rank }: { text: string; rank: number }) {
+  const [copyState, setCopyState] = useState<CopyState>("idle");
+  const headingId = `counter-offer-${rank}`;
+
+  useEffect(() => {
+    if (copyState !== "copied") return;
+    const timer = window.setTimeout(() => setCopyState("idle"), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copyState]);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
+  }
+
+  return (
+    <section className={styles.counterOffer} aria-labelledby={headingId}>
+      <div className={styles.counterOfferHead}>
+        <h4 id={headingId} className={styles.counterOfferHeading}>
+          Counter-offer
+        </h4>
+        <button type="button" className={styles.copyButton} onClick={copy} data-state={copyState}>
+          {copyState === "copied" ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <p className={styles.counterOfferText}>{text}</p>
+      <p className={styles.meta} role="status">
+        {copyState === "failed"
+          ? "Couldn't copy. Select the text and copy it by hand."
+          : "Redline drafted this wording. It isn't in your document."}
+      </p>
+    </section>
   );
 }

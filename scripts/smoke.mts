@@ -32,7 +32,8 @@ try {
     for (const claim of flag.claims) {
       console.log(`   (${claim.tier}) ${claim.text}`);
     }
-    console.log(`   Source [${flag.source.start}, ${flag.source.end}): "${flag.source.text}"\n`);
+    console.log(`   Source [${flag.source.start}, ${flag.source.end}): "${flag.source.text}"`);
+    console.log(`   Counter-offer: ${flag.counterOffer}\n`);
   }
   process.exit(0);
 } catch (error) {

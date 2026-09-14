@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { analyse, AnalysisResponseError, CitationError } from "../../lib/analysis/analyse";
 import { segmentSentences } from "../../lib/analysis/segment";
+import { ANALYSIS_SCHEMA } from "../../lib/analysis/prompt";
 import {
+  counterOfferFor,
   inferenceClaimFor,
   loadFixture,
   readOffClaimFor,
@@ -101,6 +103,7 @@ describe("analyse: a citation that does not match fails the whole analysis", () 
           claims: [{ tier: "read-off", text: "Quote with whitespace collapsed." }],
           severityBand: "medium",
           rank: 7,
+          counterOffer: "The Contractor proposes replacing this sentence.",
         },
       ],
     }));
@@ -220,5 +223,77 @@ describe("analyse: every claim carries its provenance tier", () => {
     });
 
     await expect(analyse(adhesion.text, [], client)).rejects.toBeInstanceOf(CitationError);
+  });
+});
+
+describe("analyse: every Risk flag carries its Counter-offer", () => {
+  const flagFor = (id: string) => plantedRiskFlags.find((clause) => clause.id === id)!;
+
+  it("returns a non-empty Counter-offer on every Risk flag, the one drafted for that flag's sentence", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
+
+    expect(result.riskFlags).toHaveLength(plantedRiskFlags.length);
+    result.riskFlags.forEach((flag, position) => {
+      const clause = plantedRiskFlags[position];
+      expect(flag.source.text).toBe(clause.sentence);
+      expect(flag.counterOffer.trim()).not.toBe("");
+      expect(flag.counterOffer).toBe(counterOfferFor(clause));
+    });
+  });
+
+  it("asks the model for the Counter-offer in the same call as the flag, as a required field", async () => {
+    const client = new SidecarModelClient(adhesion);
+    await analyse(adhesion.text, [], client);
+
+    expect(client.requests).toHaveLength(1);
+    const riskFlagItem = (client.requests[0].schema as typeof ANALYSIS_SCHEMA & {
+      properties: { riskFlags: { items: { required: string[] } } };
+    }).properties.riskFlags.items;
+    expect(riskFlagItem.required).toContain("counterOffer");
+  });
+
+  it("fails the whole analysis, naming the flag, when the model omits a Counter-offer", async () => {
+    const client = new SidecarModelClient(adhesion, { omitCounterOffer: ["RF-3"] });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain("counterOffer is missing");
+  });
+
+  it("fails the whole analysis when a Counter-offer is empty or only whitespace", async () => {
+    for (const blank of ["", "   \n\t"]) {
+      const client = new SidecarModelClient(adhesion, { counterOffers: { "RF-5": blank } });
+
+      const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(AnalysisResponseError);
+      expect((failure as Error).message).toContain("counterOffer is blank");
+    }
+  });
+
+  it("returns no Counter-offer when its flag's citation fails, not even the ones on flags that passed", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      payload.riskFlags[0].unitId = "u99999";
+      return payload;
+    });
+
+    const outcome = await analyse(adhesion.text, [], client).then(
+      (result) => ({ result }),
+      (error: unknown) => ({ error }),
+    );
+    expect(outcome).not.toHaveProperty("result");
+    expect((outcome as { error: unknown }).error).toBeInstanceOf(CitationError);
+    expect(JSON.stringify(outcome)).not.toContain(counterOfferFor(flagFor("RF-2")));
+  });
+
+  it("keeps each Counter-offer on its own flag after ranking reorders the flags", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => ({
+      riskFlags: payload.riskFlags.map((flag) => ({ ...flag, rank: flag.severityBand === "medium" ? 1 : 9 })),
+    }));
+    const result = await analyse(adhesion.text, [], client);
+
+    for (const flag of result.riskFlags) {
+      const clause = plantedRiskFlags.find((candidate) => candidate.sentence === flag.source.text)!;
+      expect(flag.counterOffer).toBe(counterOfferFor(clause));
+    }
   });
 });

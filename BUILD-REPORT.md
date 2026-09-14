@@ -51,6 +51,13 @@ Unattended build run started 2026-09-14. This file is updated as work lands.
   $5 limit, $0 used, no key rate limit), so the 429 comes from Fireworks, and with
   `allow_fallbacks: false` OpenRouter cannot route around it. Retried at the end of the run; see
   below.
+- **Diagnosis of the 429.** A 20-token "Say ok" request with the same pin also got 429, with
+  `provider_error_code: RATE_LIMIT_EXCEEDED` and `limit_source: upstream_provider_shared_pool`.
+  OpenRouter's shared Fireworks pool for `z-ai/glm-5.3-flash` is saturated, and the size of
+  Redline's prompts has nothing to do with it. OpenRouter suggests two ways out: add your own
+  Fireworks key under
+  https://openrouter.ai/settings/integrations (BYOK, which gets its own limits), or change the
+  provider pin. Both are your call, because you set the pin, so neither was done.
 
 ## First commands
 

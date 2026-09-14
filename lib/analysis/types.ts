@@ -44,6 +44,12 @@ export interface RiskFlag {
   /** What the flag says about its Source sentence, in the model's order. Never empty. */
   readonly claims: readonly [Claim, ...Claim[]];
   readonly source: SourceSentence;
+  /**
+   * Replacement language for the Source sentence that the Signer could send to the counterparty.
+   * Redline's drafted words, not the Document's. Required and never blank: it exists only as part
+   * of a cited Risk flag, and a flag is never returned without one.
+   */
+  readonly counterOffer: string;
 }
 
 export interface RedLine {
