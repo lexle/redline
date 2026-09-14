@@ -1,0 +1,69 @@
+:root {
+  --desk: #3f474c;
+  --desk-deep: #353c40;
+  --desk-ink: #ffffff;
+  --desk-ink-2: #c7d0d3;
+  --paper: #ffffff;
+  --ink: #16191b;
+  --ink-2: #4b5358;
+  --rule: #d9dde0;
+  --flag: #d1006f;
+  --tape: rgb(236 26 140 / 0.26);
+  --tape-on-desk: rgb(236 26 140 / 0.42);
+  --tape-clear: rgb(236 26 140 / 0.22);
+  --focus: #6ccff6;
+  --focus-on-paper: #0079ab;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --font-ui: var(--font-archivo), system-ui, sans-serif;
+  --font-doc: var(--font-tinos), "Times New Roman", Times, serif;
+  color-scheme: dark;
+  scrollbar-color: #6f787d var(--desk-deep);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--desk);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow-x: clip;
+  background: var(--desk);
+  color: var(--desk-ink);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1600' height='1000'><filter id='m'><feTurbulence type='fractalNoise' baseFrequency='0.04' numOctaves='4' seed='9'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0.3 0 0 -0.12'/></filter><rect width='100%' height='100%' filter='url(%23m)'/></svg>"),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.11 0'/></filter><rect width='100%' height='100%' filter='url(%23f)'/></svg>");
+  background-repeat: no-repeat, repeat;
+  background-size: cover, auto;
+}
+
+::selection {
+  background: rgb(108 207 246 / 0.38);
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+a {
+  color: inherit;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
