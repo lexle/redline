@@ -11,16 +11,19 @@ Proposed insertions. That goes beyond spec story 22, which names only insertions
 
 **Blocked by:** 08, 11
 
-**Status:** ready-for-agent
+**Status:** done (2026-09-14)
 
-- [ ] The export is the Document's stored text with proposed changes marked in plain text, generated
+- [x] The export is the Document's stored text with proposed changes marked in plain text, generated
       and saved in the Signer's browser.
-- [ ] Every Proposed insertion appears, visibly marked as proposed and not part of the original
+- [x] Every Proposed insertion appears, visibly marked as proposed and not part of the original
       Document. Where it is placed is a suggestion and is never presented as a Source sentence.
-- [ ] Every Risk flag's Counter-offer appears next to the clause it would replace, located by the
+      (All insertions sit in one closing block that names no place in the Document.)
+- [x] Every Risk flag's Counter-offer appears next to the clause it would replace, located by the
       flag's validated offsets. The original text stays in the export, and the replacement is marked
       as proposed.
-- [ ] Someone reading only the export can always tell the Document's own text from proposed text.
-- [ ] Overlapping or repeated spans neither duplicate nor lose original text.
-- [ ] The stored Document text is byte-identical before and after export. This is tested.
-- [ ] No synthetic section number or placeholder paragraph is written into the stored text.
+- [x] Someone reading only the export can always tell the Document's own text from proposed text.
+      (Marker length grows until it cannot collide with the Document; stripping every block gives
+      the stored text back byte for byte, and that is tested.)
+- [x] Overlapping or repeated spans neither duplicate nor lose original text.
+- [x] The stored Document text is byte-identical before and after export. This is tested.
+- [x] No synthetic section number or placeholder paragraph is written into the stored text.

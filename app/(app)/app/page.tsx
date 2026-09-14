@@ -24,6 +24,7 @@ import type {
   WorthALook,
 } from "../../../lib/analysis/types";
 import styles from "../app.module.css";
+import { ExportAction } from "./ExportAction";
 import {
   DOCUMENT_PAGE_ID,
   DocumentView,
@@ -340,6 +341,7 @@ function ResultView({ fileName, text, result }: { fileName: string; text: string
           <RiskFlagList fileName={fileName} result={result} pulled={selection.id} onPull={pull} />
         )}
         <MissingProtectionList fileName={fileName} entries={result.missingProtections} />
+        <ExportAction fileName={fileName} text={text} result={result} />
         <ChecklistSection checklist={result.checklist} />
         <UnrankedSection
           heading="Worth a look"

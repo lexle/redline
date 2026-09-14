@@ -521,6 +521,42 @@
   line-height: 1.5;
 }
 
+/* Marked-up copy export: a standard control on the desk, no magenta. */
+.export {
+  margin-top: 32px;
+}
+
+.exportText {
+  margin: 0;
+  color: var(--desk-ink-2);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.exportButton {
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 0 18px;
+  border: 1px solid rgb(255 255 255 / 0.28);
+  border-radius: 0;
+  background: transparent;
+  color: var(--desk-ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 180ms var(--ease);
+}
+
+.exportButton:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.exportButton:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
 /* Worth a look: bounded clauses, quieter than Risk flags. No rank, no magenta, collapsed by default. */
 .unranked {
   margin-top: 28px;
