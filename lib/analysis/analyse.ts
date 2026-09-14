@@ -34,56 +34,12 @@ import type {
 } from "./types.ts";
 import { NICE_TO_HAVE_KINDS, PROTECTION_KINDS, PROVENANCE_TIERS, SEVERITY_BANDS } from "./types.ts";
 
-/** The finding types that cite a Source sentence and so go through citation validation. */
-export type CitedFindingType = "risk-flag" | "worth-a-look" | "multiplier-note" | "summary-sentence" | "checklist-item";
+import { CitationError, resolveSpan, sourceOf } from "./citation.ts";
+import type { CitedFindingType, FailedCitation } from "./citation.ts";
+import { runEveryPart } from "./run-parts.ts";
 
-export interface FailedCitation {
-  /** Position of the finding in the model's response, within its own finding type's list. */
-  index: number;
-  findingType: CitedFindingType;
-  /** For a summary sentence only: which of its spans failed, in the model's order. */
-  spanIndex?: number;
-  unitId: string;
-  quote: string;
-  reason: "unknown-unit" | "quote-mismatch";
-}
-
-/**
- * The model cited a sentence that cannot be shown verbatim. The whole analysis fails: no finding is
- * returned uncited and none is dropped.
- */
-export class CitationError extends Error {
-  readonly failures: readonly FailedCitation[];
-  /** Every cited finding in the response, across all cited finding types, summary sentences included. */
-  readonly findingCount: number;
-
-  constructor(failures: FailedCitation[], findingCount: number) {
-    const failedFindings = countFailedFindings(failures);
-    super(
-      `${failedFindings} of ${findingCount} findings could not be matched to their source sentence: ` +
-        failures
-          .map((failure) => {
-            const name = `${failure.findingType} #${failure.index}${failure.spanIndex === undefined ? "" : ` span ${failure.spanIndex}`}`;
-            return failure.reason === "unknown-unit"
-              ? `${name} cites unknown unit ${JSON.stringify(failure.unitId)}`
-              : `${name} quote does not match unit ${failure.unitId} exactly`;
-          })
-          .join("; "),
-    );
-    this.name = "CitationError";
-    this.failures = failures;
-    this.findingCount = findingCount;
-  }
-
-  /** Findings whose every span matched. A summary sentence with two failed spans is one failed finding. */
-  get passedCount(): number {
-    return this.findingCount - countFailedFindings(this.failures);
-  }
-}
-
-function countFailedFindings(failures: readonly FailedCitation[]): number {
-  return new Set(failures.map((failure) => `${failure.findingType}#${failure.index}`)).size;
-}
+export { CitationError } from "./citation.ts";
+export type { CitedFindingType, FailedCitation } from "./citation.ts";
 
 /** The model's JSON does not have the shape the schema demands, or contradicts itself. */
 export class AnalysisResponseError extends Error {
@@ -150,21 +106,13 @@ interface RawSummarySentence {
 }
 
 /** Finding types whose sentence cannot also be cited by another of these types. */
-type ExclusiveFindingType = Exclude<CitedFindingType, "summary-sentence" | "checklist-item">;
+type ExclusiveFindingType = Exclude<CitedFindingType, "summary-sentence" | "checklist-item" | "answer-sentence">;
 
 const FINDING_NAMES: Record<ExclusiveFindingType, { one: string; many: string; label: string }> = {
   "risk-flag": { one: "Risk flag", many: "Risk flags", label: "a Risk flag" },
   "worth-a-look": { one: "Worth a look entry", many: "Worth a look entries", label: "Worth a look" },
   "multiplier-note": { one: "Multiplier note", many: "Multiplier notes", label: "a Multiplier note" },
 };
-
-/**
- * How many parts of a long Document are sent to the model at once. Two, not all of them: the calls
- * go to one provider (Fireworks, pinned with no fallback), whose rate limit a burst of parallel
- * requests would hit, and a rate-limit error fails the whole analysis. Two still roughly halves the
- * wait against the route's time limit. A Document in one part makes one call either way.
- */
-const PART_CONCURRENCY = 2;
 
 export interface AnalyseOptions {
   /**
@@ -214,39 +162,6 @@ export async function analyse(
     return analysis;
   });
   return assemble(documentText, analysed);
-}
-
-/**
- * Runs every part, at most `PART_CONCURRENCY` at a time, and returns their analyses in part order.
- * Any part failing (the model call rejecting, a malformed answer, a citation that does not match)
- * fails the whole analysis: no further part is started, and the error of the earliest failed part
- * is thrown once the parts already running have settled. There is no partial result.
- */
-async function runEveryPart(
-  parts: readonly DocumentPart[],
-  task: (part: DocumentPart) => Promise<PartAnalysis>,
-): Promise<PartAnalysis[]> {
-  const results: PartAnalysis[] = [];
-  const failures: { index: number; error: unknown }[] = [];
-  let next = 0;
-  const worker = async () => {
-    while (failures.length === 0 && next < parts.length) {
-      const part = parts[next++];
-      try {
-        results[part.index] = await task(part);
-      } catch (error) {
-        if (parts.length > 1 && error instanceof Error) {
-          error.message = `Part ${part.index + 1} of ${parts.length}: ${error.message}`;
-        }
-        failures.push({ index: part.index, error });
-      }
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(PART_CONCURRENCY, parts.length) }, worker));
-  if (failures.length > 0) {
-    throw failures.sort((a, b) => a.index - b.index)[0].error;
-  }
-  return results;
 }
 
 /**
@@ -728,13 +643,11 @@ function citeSummary(
   sentences.forEach((raw, index) => {
     const sources: SourceSentence[] = [];
     raw.sources.forEach(({ unitId, quote }, spanIndex) => {
-      const unit = unitsById.get(unitId);
-      if (!unit) {
-        failures.push({ index, findingType: "summary-sentence", spanIndex, unitId, quote, reason: "unknown-unit" });
-      } else if (documentText.slice(unit.start, unit.end) !== quote) {
-        failures.push({ index, findingType: "summary-sentence", spanIndex, unitId, quote, reason: "quote-mismatch" });
+      const resolved = resolveSpan(documentText, unitsById, unitId, quote);
+      if ("reason" in resolved) {
+        failures.push({ index, findingType: "summary-sentence", spanIndex, unitId, quote, reason: resolved.reason });
       } else {
-        sources.push(sourceOf(documentText, unit));
+        sources.push(sourceOf(documentText, resolved.unit));
       }
     });
     // readSummary already rejected a sentence with no spans, so a full match is never empty.
@@ -880,16 +793,12 @@ function citeAll<T extends { unitId: string; quote: string }>(
 ): { raw: T; unit: SentenceUnit; index: number }[] {
   const cited: { raw: T; unit: SentenceUnit; index: number }[] = [];
   findings.forEach((raw, index) => {
-    const unit = unitsById.get(raw.unitId);
-    if (!unit) {
-      failures.push({ index, findingType, unitId: raw.unitId, quote: raw.quote, reason: "unknown-unit" });
+    const resolved = resolveSpan(documentText, unitsById, raw.unitId, raw.quote);
+    if ("reason" in resolved) {
+      failures.push({ index, findingType, unitId: raw.unitId, quote: raw.quote, reason: resolved.reason });
       return;
     }
-    if (documentText.slice(unit.start, unit.end) !== raw.quote) {
-      failures.push({ index, findingType, unitId: raw.unitId, quote: raw.quote, reason: "quote-mismatch" });
-      return;
-    }
-    cited.push({ raw, unit, index });
+    cited.push({ raw, unit: resolved.unit, index });
   });
   return cited;
 }
@@ -917,10 +826,6 @@ function withShownClaims<T extends RawCitedFinding>(
     );
   }
   return withClaims as { raw: T; unit: SentenceUnit; index: number; shown: [Claim, ...Claim[]] }[];
-}
-
-function sourceOf(documentText: string, unit: SentenceUnit): SourceSentence {
-  return { start: unit.start, end: unit.end, text: documentText.slice(unit.start, unit.end) };
 }
 
 function isShown(claim: RawClaim): claim is Claim {

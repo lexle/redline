@@ -20,12 +20,13 @@ import type {
   NiceToHaveKind,
   ProtectionKind,
   SeverityBand,
-  SourceSentence,
   SummarySentence,
   WorthALook,
 } from "../../../lib/analysis/types";
 import styles from "../app.module.css";
 import { ExportAction } from "./ExportAction";
+import { QuestionBox } from "./QuestionBox";
+import { SourceReveal } from "./SourceReveal";
 import {
   DOCUMENT_PAGE_ID,
   DocumentView,
@@ -344,6 +345,7 @@ function ResultView({ fileName, text, result }: { fileName: string; text: string
           <RiskFlagList fileName={fileName} result={result} pulled={selection.id} onPull={pull} />
         )}
         <MissingProtectionList fileName={fileName} entries={result.missingProtections} />
+        <QuestionBox fileName={fileName} text={text} />
         <ExportAction fileName={fileName} text={text} result={result} />
         <ChecklistSection checklist={result.checklist} />
         <UnrankedSection
@@ -398,35 +400,6 @@ function SummaryItem({ sentence, index }: { sentence: SummarySentence; index: nu
       </p>
       <SourceReveal id={`summary-sources-${index}`} sources={sentence.sources} />
     </li>
-  );
-}
-
-/** Source sentences shown on request, in Tinos and in quotes: the Document's own words. */
-function SourceReveal({ id, sources }: { id: string; sources: readonly SourceSentence[] }) {
-  const [open, setOpen] = useState(false);
-  const many = sources.length > 1;
-  return (
-    <>
-      <button
-        type="button"
-        className={styles.sourceToggle}
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={() => setOpen((value) => !value)}
-      >
-        {open
-          ? many ? "Hide the quotes" : "Hide the quote"
-          : many ? `Show the ${sources.length} quotes it rests on` : "Show the quote it rests on"}
-      </button>
-      <div id={id} hidden={!open}>
-        {sources.map((source) => (
-          <blockquote key={source.start} className={styles.quote}>
-            <p>“{source.text}”</p>
-          </blockquote>
-        ))}
-        <p className={styles.meta}>Quoted word for word from your document</p>
-      </div>
-    </>
   );
 }
 

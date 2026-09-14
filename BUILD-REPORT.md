@@ -79,6 +79,8 @@ Unattended build run started 2026-09-14. This file is updated as work lands.
   Fireworks key under
   https://openrouter.ai/settings/integrations (BYOK, which gets its own limits), or change the
   provider pin. Both are your call, because you set the pin, so neither was done.
+- **CI on GitHub works.** The first push, `f9a0830` (tickets 01 to 15 and 17), ran the CI workflow
+  (typecheck, tests, build) and it passed.
 
 ## First commands
 

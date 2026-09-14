@@ -960,3 +960,115 @@
     animation: none;
   }
 }
+
+/* Question box: Redline's answers in Archivo; quoted Source sentences reuse .quote (Tinos).
+   A question the Document doesn't answer is a plain statement, never styled as a failure. */
+.questions {
+  margin-top: 32px;
+}
+
+.exchanges {
+  display: grid;
+  gap: 18px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.exchange {
+  min-width: 0;
+  padding-left: 12px;
+  border-left: 1px solid rgb(255 255 255 / 0.14);
+}
+
+.asked {
+  margin: 0 0 6px;
+  color: var(--desk-ink-2);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.answerList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.answerItem {
+  min-width: 0;
+}
+
+.answerStatement {
+  margin: 0;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+}
+
+.questionFailure {
+  padding: 12px 16px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.questionForm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 16px;
+}
+
+.questionLabel {
+  color: var(--desk-ink);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.questionInput {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.questionInput:focus-visible,
+.questionButton:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.questionButton {
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 180ms var(--ease), opacity 180ms var(--ease);
+}
+
+.questionButton:hover:not(:disabled) {
+  background: var(--rule);
+}
+
+.questionButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
