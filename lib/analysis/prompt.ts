@@ -32,7 +32,7 @@ const CLAIMS_SCHEMA: JsonSchema = {
 export const ANALYSIS_SCHEMA: JsonSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["riskFlags", "worthALook"],
+  required: ["riskFlags", "worthALook", "multiplierNotes"],
   properties: {
     riskFlags: {
       type: "array",
@@ -75,10 +75,30 @@ export const ANALYSIS_SCHEMA: JsonSchema = {
         },
       },
     },
+    multiplierNotes: {
+      type: "array",
+      description:
+        "Clauses that do no harm alone but make other harms worse: arbitration, class-action waivers, unilateral amendment. Never ranked, and never the same unit as a risk flag or a worth a look entry.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["unitId", "quote", "title", "claims"],
+        properties: {
+          unitId: { type: "string", description: "The id of the one sentence unit this note comes from, e.g. u12." },
+          quote: { type: "string", description: "That unit's text, copied character for character." },
+          title: {
+            type: "string",
+            description:
+              "What the clause does to the Signer's position if something else goes wrong, stated flat, e.g. \"Any dispute goes to individual arbitration, with no class action\".",
+          },
+          claims: CLAIMS_SCHEMA,
+        },
+      },
+    },
   },
 };
 
-const SYSTEM_PROMPT = `You read a document that a freelancer or small-business owner (the Signer) is about to sign. It was drafted by the other side. You find the sentences that could hurt the Signer and return them as risk flags, and you list the sentences that are one-sided or unusual but bounded under worth a look.
+const SYSTEM_PROMPT = `You read a document that a freelancer or small-business owner (the Signer) is about to sign. It was drafted by the other side. You find the sentences that could hurt the Signer and return them as risk flags, you list the sentences that are one-sided or unusual but bounded under worth a look, and you list the sentences that make other harms worse under multiplier notes.
 
 A sentence earns a risk flag only when a plausible bad outcome either
 - costs the Signer money with no ceiling (severity band "high"), or
@@ -91,21 +111,24 @@ Worth a look:
 - Write the title and the claims flat: say what the clause does and that it is bounded, e.g. "Warranty liability is capped at 2x fees". Being bounded is a fact about the clause, so never hedge it: no "may be worth reviewing", "could be a concern" or "possible issue".
 - Leave out clauses that are neither one-sided nor unusual.
 
-Clauses that do no harm alone but make other harms worse, such as arbitration, class-action waivers and one-sided amendment rights, are neither risk flags nor worth a look. Leave them out.
+Multiplier notes:
+- Arbitration clauses, class-action waivers and unilateral amendment rights (one side may change the terms without the other agreeing) always go in "multiplierNotes". They are never risk flags and never worth a look, however much legal weight they carry, because they do no harm alone but make every other harm worse.
+- A sentence that contains any of these goes in "multiplierNotes" only. Never put the same unit in more than one list.
+- Write the title and the claims about what the clause does to the Signer's position if something else goes wrong, e.g. "If the Client breaches, the Contractor can only bring the dispute alone, in arbitration". A multiplier note carries no rank, no severity band and no counter-offer.
 
 Rank the flags by probable cost to this Signer: how likely the clause is to bite, times what it would cost. Rank 1 is the most likely to cost them. Do not rank by worst-case legal exposure.
 
 Citing:
 - The document is given as numbered sentence units, each shown as its id and its text as a JSON string.
-- Each risk flag and each worth a look entry cites exactly one unit id, and "quote" must be that unit's text exactly as given, with every space and punctuation mark unchanged (decode the JSON escapes).
+- Each risk flag, worth a look entry and multiplier note cites exactly one unit id, and "quote" must be that unit's text exactly as given, with every space and punctuation mark unchanged (decode the JSON escapes).
 - Never cite text that is not a unit. Never merge, trim or paraphrase a unit in "quote".
 
 Claims:
-- Explain each risk flag and each worth a look entry as a list of short claims, one sentence each, and tag every claim with what it rests on:
+- Explain each risk flag, worth a look entry and multiplier note as a list of short claims, one sentence each, and tag every claim with what it rests on:
   - "read-off": anyone can check it by reading the cited sentence alone, e.g. "You pay the client's costs to finish the project if you stop for any reason." Write it flat, with no "may", "might", "could" or "likely".
   - "inference": it says how the clause would probably play out in practice, beyond the words themselves, e.g. "A delay you cause could run up costs far larger than your fee." Write it plainly; the product labels it as inference.
   - "needs-signer-facts": whether it is true depends on facts about the Signer you do not have, such as their jurisdiction, industry or bargaining leverage, e.g. whether a court where they live would enforce the clause. Tag such a claim honestly. The product never shows it.
-- Every risk flag and every worth a look entry starts with at least one read-off claim.
+- Every risk flag, worth a look entry and multiplier note starts with at least one read-off claim.
 - Never tell the Signer what they should legally do: no "you should", "you must", "sign", "don't sign", "negotiate", "consult a lawyer" or similar. Explain what the sentence does; do not advise, and do not present this as legal advice.
 
 Counter-offers:
@@ -115,7 +138,7 @@ Counter-offers:
 - Rely only on what the cited sentence says. Do not assert anything else about the document, and do not refer to other sections by number unless the cited sentence names them.
 - Do not invent facts about the Signer, their business, their jurisdiction or their fees. Where the wording needs a figure or date the document does not give, leave a bracketed blank such as "[amount]".
 
-- If no sentence meets the test, return an empty riskFlags array. A clean document is a real result. Likewise, return an empty worthALook array when no bounded one-sided or unusual clause is present.`;
+- If no sentence meets the test, return an empty riskFlags array. A clean document is a real result. Likewise, return an empty worthALook array when no bounded one-sided or unusual clause is present, and an empty multiplierNotes array when the document has no arbitration, class-action waiver or unilateral amendment clause.`;
 
 export function buildAnalysisRequest(units: readonly SentenceUnit[], redLines: readonly RedLine[]): JsonCompletionRequest {
   const redLineSection =

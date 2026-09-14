@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { AnalyseFailureCode, AnalyseRequestBody, AnalyseResponseBody } from "../../../lib/analysis/api";
-import type { AnalysisResult, Claim, SeverityBand, WorthALook } from "../../../lib/analysis/types";
+import type { AnalysisResult, Claim, MultiplierNote, SeverityBand, WorthALook } from "../../../lib/analysis/types";
 import styles from "../app.module.css";
 
 type FailureReason = AnalyseFailureCode | "not-txt" | "empty-file" | "unreadable-file" | "offline";
@@ -139,7 +139,18 @@ export default function AnalysePage() {
         {screen.state === "result" && (
           <>
             <RiskFlagList fileName={screen.fileName} result={screen.result} />
-            <WorthALookSection entries={screen.result.worthALook} />
+            <UnrankedSection
+              heading="Worth a look"
+              explainer="These clauses are one-sided or unusual, but each has a limit and a way out, so they aren’t ranked with the risk flags."
+              empty="Nothing for Worth a look in this document."
+              entries={screen.result.worthALook}
+            />
+            <UnrankedSection
+              heading="Multiplier notes"
+              explainer="These clauses make things harder for you if something else in the agreement goes wrong. On their own they cost you nothing, so they aren’t ranked with the risk flags."
+              empty="No multiplier notes in this document."
+              entries={screen.result.multiplierNotes}
+            />
           </>
         )}
       </section>
@@ -205,26 +216,34 @@ function ClaimList({ claims }: { claims: readonly Claim[] }) {
 }
 
 /**
- * Bounded clauses, listed after the Risk flags and collapsed by default (ADR-0006). Quieter than a
- * Risk flag: no rank, no magenta tip, no Counter-offer. The Source sentence is still shown verbatim.
+ * A cited finding type kept outside the ranking and collapsed by default: Worth a look (ADR-0006) and
+ * Multiplier notes (ADR-0003). Quieter than a Risk flag: no rank, no magenta tip, no Counter-offer.
+ * The Source sentence is still shown verbatim.
  */
-function WorthALookSection({ entries }: { entries: readonly WorthALook[] }) {
+function UnrankedSection({
+  heading,
+  explainer,
+  empty,
+  entries,
+}: {
+  heading: string;
+  explainer: string;
+  empty: string;
+  entries: readonly (WorthALook | MultiplierNote)[];
+}) {
   if (entries.length === 0) {
-    return <p className={`${styles.quiet} ${styles.worthALookEmpty}`}>Nothing for Worth a look in this document.</p>;
+    return <p className={`${styles.quiet} ${styles.unrankedEmpty}`}>{empty}</p>;
   }
   return (
-    <details className={styles.worthALook}>
-      <summary className={styles.worthALookSummary}>
-        <span className={styles.worthALookHeading}>Worth a look</span>
-        <span className={styles.worthALookCount}>{entries.length}</span>
+    <details className={styles.unranked}>
+      <summary className={styles.unrankedSummary}>
+        <span className={styles.unrankedHeading}>{heading}</span>
+        <span className={styles.unrankedCount}>{entries.length}</span>
       </summary>
-      <p className={styles.meta}>
-        These clauses are one-sided or unusual, but each has a limit and a way out, so they aren&rsquo;t ranked
-        with the risk flags.
-      </p>
-      <ul className={styles.worthALookList}>
+      <p className={styles.meta}>{explainer}</p>
+      <ul className={styles.unrankedList}>
         {entries.map((entry) => (
-          <li key={entry.source.start} className={styles.worthALookEntry}>
+          <li key={entry.source.start} className={styles.unrankedEntry}>
             <h3 className={styles.flagTitle}>{entry.title}</h3>
             <ClaimList claims={entry.claims} />
             <blockquote className={styles.quote}>

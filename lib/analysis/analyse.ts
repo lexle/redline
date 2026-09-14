@@ -5,6 +5,7 @@ import type { SentenceUnit } from "./segment.ts";
 import type {
   AnalysisResult,
   Claim,
+  MultiplierNote,
   ProvenanceTier,
   RedLine,
   RiskFlag,
@@ -15,7 +16,7 @@ import type {
 import { PROVENANCE_TIERS, SEVERITY_BANDS } from "./types.ts";
 
 /** The finding types that cite a Source sentence and so go through citation validation. */
-export type CitedFindingType = "risk-flag" | "worth-a-look";
+export type CitedFindingType = "risk-flag" | "worth-a-look" | "multiplier-note";
 
 export interface FailedCitation {
   /** Position of the finding in the model's response, within its own finding type's list. */
@@ -82,11 +83,10 @@ interface RawRiskFlag extends RawCitedFinding {
   counterOffer: string;
 }
 
-type RawWorthALook = RawCitedFinding;
-
-const FINDING_NAMES: Record<CitedFindingType, { one: string; many: string }> = {
-  "risk-flag": { one: "Risk flag", many: "Risk flags" },
-  "worth-a-look": { one: "Worth a look entry", many: "Worth a look entries" },
+const FINDING_NAMES: Record<CitedFindingType, { one: string; many: string; label: string }> = {
+  "risk-flag": { one: "Risk flag", many: "Risk flags", label: "a Risk flag" },
+  "worth-a-look": { one: "Worth a look entry", many: "Worth a look entries", label: "Worth a look" },
+  "multiplier-note": { one: "Multiplier note", many: "Multiplier notes", label: "a Multiplier note" },
 };
 
 export async function analyse(
@@ -101,36 +101,39 @@ export async function analyse(
 
   const response = await modelClient.completeJson(buildAnalysisRequest(units, redLines));
   const rawFlags = readRiskFlags(response);
-  const rawWorthALook = readWorthALook(response);
+  const rawWorthALook = readUnrankedFindings(response, "worthALook", "worth-a-look");
+  const rawMultiplierNotes = readUnrankedFindings(response, "multiplierNotes", "multiplier-note");
 
-  // Both cited finding types go through one validation pass, so a single CitationError names every
-  // failed finding of either type.
+  // Every cited finding type goes through one validation pass, so a single CitationError names every
+  // failed finding of any type.
   const unitsById = new Map<string, SentenceUnit>(units.map((unit) => [unit.id, unit]));
   const failures: FailedCitation[] = [];
   const citedFlags = citeAll("risk-flag", rawFlags, documentText, unitsById, failures);
   const citedWorthALook = citeAll("worth-a-look", rawWorthALook, documentText, unitsById, failures);
+  const citedMultiplierNotes = citeAll("multiplier-note", rawMultiplierNotes, documentText, unitsById, failures);
 
   if (failures.length > 0) {
-    throw new CitationError(failures, rawFlags.length + rawWorthALook.length);
+    throw new CitationError(failures, rawFlags.length + rawWorthALook.length + rawMultiplierNotes.length);
   }
 
-  // A sentence cited both as a Risk flag and as Worth a look is a contradictory response: a clause
-  // cannot be uncapped-or-inescapable and bounded at once (ADR-0004, ADR-0006). The analysis fails
-  // as malformed rather than picking one, because either choice would silently override the model
-  // on the load-bearing judgement: keeping the flag hides that the model also called the clause
-  // bounded, and keeping Worth a look demotes a clause the model said could sink the Signer.
-  const flaggedUnitIds = new Set(citedFlags.map(({ unit }) => unit.id));
-  const contradictions = citedWorthALook.filter(({ unit }) => flaggedUnitIds.has(unit.id));
-  if (contradictions.length > 0) {
-    throw new AnalysisResponseError(
-      `${contradictions.length === 1 ? "A sentence is" : `${contradictions.length} sentences are`} cited both as a Risk flag and as Worth a look: ` +
-        contradictions.map(({ unit }) => `unit ${unit.id}`).join(", ") +
-        ".",
-    );
-  }
+  // A sentence cited under two finding types is a contradictory response, and the analysis fails as
+  // malformed rather than picking one, because either choice would silently override the model on
+  // the load-bearing judgement.
+  // - Risk flag and Worth a look: a clause cannot be uncapped-or-inescapable and bounded at once
+  //   (ADR-0004, ADR-0006). Keeping the flag hides that the model also called the clause bounded;
+  //   keeping Worth a look demotes a clause the model said could sink the Signer.
+  // - Multiplier note and either other type: a multiplier is kept out of the ranking whatever its
+  //   legal weight (ADR-0003), so a multiplier that is also a Risk flag has been ranked, and one that
+  //   is also Worth a look has been judged as a harm of its own.
+  failIfCitedTwice([
+    ["risk-flag", citedFlags],
+    ["worth-a-look", citedWorthALook],
+    ["multiplier-note", citedMultiplierNotes],
+  ]);
 
   const flagsWithClaims = withShownClaims("risk-flag", citedFlags);
   const worthALookWithClaims = withShownClaims("worth-a-look", citedWorthALook);
+  const multiplierNotesWithClaims = withShownClaims("multiplier-note", citedMultiplierNotes);
 
   const bandOrder = (band: SeverityBand) => SEVERITY_BANDS.indexOf(band);
   flagsWithClaims.sort(
@@ -159,7 +162,38 @@ export async function analyse(
     source: sourceOf(documentText, unit),
   }));
 
-  return { riskFlags, worthALook };
+  // Multiplier notes are never ranked either: they keep the Document's order.
+  multiplierNotesWithClaims.sort((a, b) => a.unit.start - b.unit.start);
+  const multiplierNotes: MultiplierNote[] = multiplierNotesWithClaims.map(({ raw, unit, shown }) => ({
+    kind: "multiplier-note",
+    title: raw.title,
+    claims: shown,
+    source: sourceOf(documentText, unit),
+  }));
+
+  return { riskFlags, worthALook, multiplierNotes };
+}
+
+function failIfCitedTwice(
+  groups: readonly (readonly [CitedFindingType, readonly { unit: SentenceUnit }[]])[],
+): void {
+  const typesByUnit = new Map<string, CitedFindingType[]>();
+  for (const [findingType, findings] of groups) {
+    for (const { unit } of findings) {
+      const types = typesByUnit.get(unit.id) ?? [];
+      if (!types.includes(findingType)) types.push(findingType);
+      typesByUnit.set(unit.id, types);
+    }
+  }
+  const contradictions = [...typesByUnit].filter(([, types]) => types.length > 1);
+  if (contradictions.length === 0) return;
+  throw new AnalysisResponseError(
+    `${contradictions.length === 1 ? "A sentence is" : `${contradictions.length} sentences are`} cited under more than one finding type: ` +
+      contradictions
+        .map(([unitId, types]) => `unit ${unitId} as ${types.map((type) => FINDING_NAMES[type].label).join(" and as ")}`)
+        .join(", ") +
+      ".",
+  );
 }
 
 function citeAll<T extends RawCitedFinding>(
@@ -218,7 +252,7 @@ function isShown(claim: RawClaim): claim is Claim {
   return claim.tier !== "needs-signer-facts";
 }
 
-function readList(response: unknown, key: "riskFlags" | "worthALook"): unknown[] {
+function readList(response: unknown, key: "riskFlags" | "worthALook" | "multiplierNotes"): unknown[] {
   if (typeof response !== "object" || response === null || !Array.isArray((response as Record<string, unknown>)[key])) {
     throw new AnalysisResponseError(`The model's answer has no ${key} list.`);
   }
@@ -262,15 +296,20 @@ function readRiskFlags(response: unknown): RawRiskFlag[] {
   });
 }
 
-function readWorthALook(response: unknown): RawWorthALook[] {
-  return readList(response, "worthALook").map((item, index) => {
-    const entry = item as Partial<Record<keyof RawWorthALook, unknown>> | undefined;
+/** Reads a list of cited findings that carry no rank, band or Counter-offer: Worth a look and Multiplier notes. */
+function readUnrankedFindings(
+  response: unknown,
+  key: "worthALook" | "multiplierNotes",
+  findingType: "worth-a-look" | "multiplier-note",
+): RawCitedFinding[] {
+  return readList(response, key).map((item, index) => {
+    const entry = item as Partial<Record<keyof RawCitedFinding, unknown>> | undefined;
     const problems = citedFindingProblems(entry);
     if (problems.length > 0) {
       throw new AnalysisResponseError(
-        `Worth a look entry #${index} in the model's answer is malformed: ${problems.join(", ")}.`,
+        `${FINDING_NAMES[findingType].one} #${index} in the model's answer is malformed: ${problems.join(", ")}.`,
       );
     }
-    return entry as RawWorthALook;
+    return entry as RawCitedFinding;
   });
 }

@@ -346,17 +346,17 @@
 }
 
 /* Worth a look: bounded clauses, quieter than Risk flags. No rank, no magenta, collapsed by default. */
-.worthALook {
+.unranked {
   margin-top: 28px;
   border-top: 1px solid rgb(255 255 255 / 0.12);
 }
 
-.worthALookEmpty {
+.unrankedEmpty {
   margin-top: 28px;
   font-size: 0.9375rem;
 }
 
-.worthALookSummary {
+.unrankedSummary {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -370,17 +370,17 @@
   transition: color 180ms var(--ease);
 }
 
-.worthALookSummary:hover,
-.worthALook[open] > .worthALookSummary {
+.unrankedSummary:hover,
+.unranked[open] > .unrankedSummary {
   color: var(--desk-ink);
 }
 
-.worthALookSummary:focus-visible {
+.unrankedSummary:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
 
-.worthALookCount {
+.unrankedCount {
   min-width: 24px;
   padding: 1px 6px;
   border: 1px solid rgb(255 255 255 / 0.28);
@@ -388,7 +388,7 @@
   text-align: center;
 }
 
-.worthALookList {
+.unrankedList {
   display: grid;
   gap: 8px;
   margin: 12px 0 0;
@@ -396,7 +396,7 @@
   list-style: none;
 }
 
-.worthALookEntry {
+.unrankedEntry {
   min-width: 0;
   padding: 10px 14px 12px;
   border-left: 3px solid rgb(255 255 255 / 0.2);
@@ -417,7 +417,7 @@
 @media (prefers-reduced-motion: reduce) {
   .fileButton,
   .copyButton,
-  .worthALookSummary,
+  .unrankedSummary,
   .flag {
     transition: none;
   }

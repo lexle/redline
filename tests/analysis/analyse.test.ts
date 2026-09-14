@@ -16,8 +16,9 @@ const plantedRiskFlags = adhesion.sidecar.plantedClauses
   .filter((clause) => clause.findingType === "risk-flag")
   .sort((a, b) => a.expectedRank! - b.expectedRank!);
 const plantedWorthALook = adhesion.sidecar.plantedClauses.filter((clause) => clause.findingType === "worth-a-look");
-/** Every finding the stub sends that cites a Source sentence: Risk flags and Worth a look. */
-const citedFindingCount = plantedRiskFlags.length + plantedWorthALook.length;
+const plantedMultiplierNotes = adhesion.sidecar.plantedClauses.filter((clause) => clause.findingType === "multiplier-note");
+/** Every finding the stub sends that cites a Source sentence: Risk flags, Worth a look and Multiplier notes. */
+const citedFindingCount = plantedRiskFlags.length + plantedWorthALook.length + plantedMultiplierNotes.length;
 
 describe("analyse: Risk flags cite their Source sentence", () => {
   it("returns only Risk flags whose Source sentence is the exact stored text at its offsets", async () => {
@@ -430,5 +431,187 @@ describe("analyse: bounded clauses go to Worth a look, outside the Risk flag ran
   it("returns no Worth a look for the clean agreement when the model finds none", async () => {
     const result = await analyse(clean.text, [], new SidecarModelClient(clean));
     expect(result.worthALook).toEqual([]);
+  });
+});
+
+describe("analyse: harm multipliers come back as Multiplier notes, outside the Risk flag ranking", () => {
+  const units = segmentSentences(adhesion.text);
+  const arbitration = plantedMultiplierNotes.find((clause) => clause.clauseType === "arbitration-class-action-waiver")!;
+  const amendment = plantedMultiplierNotes.find((clause) => clause.clauseType === "unilateral-amendment")!;
+  const arbitrationUnit = units.find((unit) => unit.text === arbitration.sentence)!;
+  const amendmentUnit = units.find((unit) => unit.text === amendment.sentence)!;
+
+  it("returns the arbitration clause as a Multiplier note, and not among the Risk flags or Worth a look", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
+
+    const note = result.multiplierNotes.find((candidate) => candidate.source.text === arbitration.sentence);
+    expect(note).toBeDefined();
+    expect(note!.kind).toBe("multiplier-note");
+    expect(result.riskFlags.map((flag) => flag.source.text)).not.toContain(arbitration.sentence);
+    expect(result.worthALook.map((entry) => entry.source.text)).not.toContain(arbitration.sentence);
+    expect(result.riskFlags.map((flag) => flag.rank)).toEqual(plantedRiskFlags.map((clause) => clause.expectedRank));
+  });
+
+  it("still returns the arbitration clause as a Multiplier note when the Document has no ranked Risk flags", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion, { onlyMultiplierNotes: true }));
+
+    expect(result.riskFlags).toEqual([]);
+    expect(result.multiplierNotes.length).toBeGreaterThan(0);
+    expect(result.multiplierNotes.map((note) => note.source.text)).toContain(arbitration.sentence);
+  });
+
+  it("never returns the unilateral amendment clause among the Risk flags", async () => {
+    for (const client of [
+      new SidecarModelClient(adhesion),
+      new SidecarModelClient(adhesion, { onlyMultiplierNotes: true }),
+    ]) {
+      const result = await analyse(adhesion.text, [], client);
+      expect(result.riskFlags.map((flag) => flag.source.text)).not.toContain(amendment.sentence);
+      expect(result.multiplierNotes.map((note) => note.source.text)).toContain(amendment.sentence);
+    }
+  });
+
+  it("gives every Multiplier note a Source sentence that is the exact stored text at its offsets, in Document order", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
+
+    expect(result.multiplierNotes.map((note) => note.source)).toEqual(
+      [arbitrationUnit, amendmentUnit]
+        .sort((a, b) => a.start - b.start)
+        .map((unit) => ({ start: unit.start, end: unit.end, text: unit.text })),
+    );
+    for (const note of result.multiplierNotes) {
+      expect(adhesion.text.slice(note.source.start, note.source.end)).toBe(note.source.text);
+    }
+  });
+
+  it("carries no rank, severity band or Counter-offer on a Multiplier note", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
+
+    for (const note of result.multiplierNotes) {
+      expect(Object.keys(note).sort()).toEqual(["claims", "kind", "source", "title"]);
+    }
+  });
+
+  it("returns tiered claims on a Multiplier note and withholds the ones that need facts about the Signer", async () => {
+    const enforceabilityClaim = {
+      tier: "needs-signer-facts" as const,
+      text: "A court in your state would not enforce this class-action waiver.",
+    };
+    const client = new SidecarModelClient(adhesion, { extraClaims: { [arbitration.id]: [enforceabilityClaim] } });
+    const result = await analyse(adhesion.text, [], client);
+
+    const note = result.multiplierNotes.find((candidate) => candidate.source.text === arbitration.sentence)!;
+    expect(note.claims).toEqual([readOffClaimFor(arbitration), inferenceClaimFor(arbitration)]);
+    expect(JSON.stringify(result)).not.toContain(enforceabilityClaim.text);
+  });
+
+  it("fails the analysis when every claim on a Multiplier note is withheld", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      const note = payload.multiplierNotes.find((candidate) => candidate.quote === amendment.sentence)!;
+      note.claims = [{ tier: "needs-signer-facts", text: "Your client would never use this right." }];
+      return payload;
+    });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain(`unit ${amendmentUnit.id}`);
+  });
+
+  it("throws CitationError when a Multiplier note quote differs from the stored sentence", async () => {
+    const tampered = arbitration.sentence.replace("Wilmington, Delaware", "Dover, Delaware");
+    const client = new SidecarModelClient(adhesion, { multiplierNoteQuotes: { [arbitration.id]: tampered } });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(CitationError);
+    const citationError = failure as CitationError;
+    expect(citationError.failures).toEqual([
+      expect.objectContaining({ findingType: "multiplier-note", unitId: arbitrationUnit.id, quote: tampered, reason: "quote-mismatch" }),
+    ]);
+    expect(citationError.passedCount).toBe(citedFindingCount - 1);
+  });
+
+  it("names failures across every finding type in one CitationError", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      payload.riskFlags[0].quote += " ";
+      payload.worthALook[0].unitId = "u99999";
+      payload.multiplierNotes[0].quote = payload.multiplierNotes[0].quote.slice(1);
+      return payload;
+    });
+
+    const failure = (await analyse(adhesion.text, [], client).catch((error: unknown) => error)) as CitationError;
+    expect(failure).toBeInstanceOf(CitationError);
+    expect(failure.failures.map((item) => item.findingType).sort()).toEqual(["multiplier-note", "risk-flag", "worth-a-look"]);
+    expect(failure.passedCount).toBe(citedFindingCount - 3);
+  });
+
+  it("fails the analysis as malformed when the same sentence is cited as a Multiplier note and as a Risk flag", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => ({
+      ...payload,
+      riskFlags: [
+        ...payload.riskFlags,
+        {
+          unitId: arbitrationUnit.id,
+          quote: arbitrationUnit.text,
+          title: "Binding individual arbitration",
+          claims: [{ tier: "read-off", text: "Every dispute goes to binding individual arbitration." }],
+          severityBand: "medium",
+          rank: 7,
+          counterOffer: "Either party may bring a dispute in a court of competent jurisdiction.",
+        },
+      ],
+    }));
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain(`unit ${arbitrationUnit.id}`);
+  });
+
+  it("fails the analysis as malformed when the same sentence is cited as a Multiplier note and as Worth a look", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => ({
+      ...payload,
+      worthALook: [
+        ...payload.worthALook,
+        {
+          unitId: amendmentUnit.id,
+          quote: amendmentUnit.text,
+          title: "The Client can change the terms",
+          claims: [{ tier: "read-off", text: "The Client may amend any term by posting it to its portal." }],
+        },
+      ],
+    }));
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain(`unit ${amendmentUnit.id}`);
+  });
+
+  it("fails the analysis when the model's answer has no Multiplier notes list", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      delete (payload as Partial<typeof payload>).multiplierNotes;
+      return payload;
+    });
+
+    await expect(analyse(adhesion.text, [], client)).rejects.toBeInstanceOf(AnalysisResponseError);
+  });
+
+  it("asks the model for Multiplier notes as their own required list, with no rank, band or Counter-offer", async () => {
+    const client = new SidecarModelClient(adhesion);
+    await analyse(adhesion.text, [], client);
+
+    const schema = client.requests[0].schema as {
+      required: string[];
+      properties: { multiplierNotes: { items: { required: string[]; properties: Record<string, unknown> } } };
+    };
+    expect(schema.required).toEqual(expect.arrayContaining(["riskFlags", "worthALook", "multiplierNotes"]));
+    const item = schema.properties.multiplierNotes.items;
+    expect(item.required).toEqual(expect.arrayContaining(["unitId", "quote", "claims"]));
+    for (const field of ["rank", "counterOffer", "severityBand"]) {
+      expect(Object.keys(item.properties)).not.toContain(field);
+    }
+  });
+
+  it("returns no Multiplier notes for the clean agreement when the model finds none", async () => {
+    const result = await analyse(clean.text, [], new SidecarModelClient(clean));
+    expect(result.multiplierNotes).toEqual([]);
   });
 });

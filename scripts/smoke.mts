@@ -43,6 +43,14 @@ try {
     }
     console.log(`   Source [${entry.source.start}, ${entry.source.end}): "${entry.source.text}"\n`);
   }
+  console.log(`${result.multiplierNotes.length} Multiplier notes, not ranked, every one cited verbatim\n`);
+  for (const note of result.multiplierNotes) {
+    console.log(`- ${note.title}`);
+    for (const claim of note.claims) {
+      console.log(`   (${claim.tier}) ${claim.text}`);
+    }
+    console.log(`   Source [${note.source.start}, ${note.source.end}): "${note.source.text}"\n`);
+  }
   process.exit(0);
 } catch (error) {
   if (error instanceof CitationError) {

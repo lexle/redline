@@ -57,9 +57,17 @@ export interface ModelWorthALook {
   claims: ModelClaim[];
 }
 
+export interface ModelMultiplierNote {
+  unitId: string;
+  quote: string;
+  title: string;
+  claims: ModelClaim[];
+}
+
 export interface ModelPayload {
   riskFlags: ModelRiskFlag[];
   worthALook: ModelWorthALook[];
+  multiplierNotes: ModelMultiplierNote[];
 }
 
 export interface SidecarClientOptions {
@@ -74,6 +82,10 @@ export interface SidecarClientOptions {
   counterOffers?: Record<string, string>;
   /** Quote to send instead of the unit's exact text for a planted Worth a look, keyed by clause id. */
   worthALookQuotes?: Record<string, string>;
+  /** Quote to send instead of the unit's exact text for a planted Multiplier note, keyed by clause id. */
+  multiplierNoteQuotes?: Record<string, string>;
+  /** Send the planted Multiplier notes with an empty riskFlags list, as a model would for a Document with no ranked harm. */
+  onlyMultiplierNotes?: boolean;
   /** Corrupt or reshape the payload before it is returned. */
   tamper?: (payload: ModelPayload) => ModelPayload;
 }
@@ -95,7 +107,8 @@ export function counterOfferFor(clause: PlantedClause): string {
 
 /**
  * A synthetic ModelClient that answers the way a correct model would for a fixture: one Risk flag
- * per planted risk-flag sentence and one Worth a look entry per planted worth-a-look sentence, citing the unit id the product's own segmenter gives it, with a
+ * per planted risk-flag sentence, one Worth a look entry per planted worth-a-look sentence and one
+ * Multiplier note per planted multiplier-note sentence, citing the unit id the product's own segmenter gives it, with a
  * read-off claim and an inference claim built from the sidecar, then any test-supplied extras.
  * Flags are emitted in reverse rank order so ranking is exercised. Every request received is kept
  * in `requests`.
@@ -110,11 +123,16 @@ export class SidecarModelClient implements ModelClient {
       omitCounterOffer = [],
       counterOffers = {},
       worthALookQuotes = {},
+      multiplierNoteQuotes = {},
+      onlyMultiplierNotes = false,
       tamper,
     } = typeof options === "function" ? { tamper: options } : options;
     const units = segmentSentences(fixture.text);
     const planted = fixture.sidecar.plantedClauses.filter((clause) => clause.findingType === "risk-flag");
     const plantedWorthALook = fixture.sidecar.plantedClauses.filter((clause) => clause.findingType === "worth-a-look");
+    const plantedMultiplierNotes = fixture.sidecar.plantedClauses.filter(
+      (clause) => clause.findingType === "multiplier-note",
+    );
     for (const id of [...omitCounterOffer, ...Object.keys(counterOffers)]) {
       if (!planted.some((clause) => clause.id === id)) {
         throw new Error(`Options name ${id}, which is not a planted risk flag in ${fixture.sidecar.document}.`);
@@ -125,8 +143,13 @@ export class SidecarModelClient implements ModelClient {
         throw new Error(`Options name ${id}, which is not a planted worth-a-look clause in ${fixture.sidecar.document}.`);
       }
     }
+    for (const id of Object.keys(multiplierNoteQuotes)) {
+      if (!plantedMultiplierNotes.some((clause) => clause.id === id)) {
+        throw new Error(`Options name ${id}, which is not a planted multiplier note in ${fixture.sidecar.document}.`);
+      }
+    }
     for (const id of Object.keys(extraClaims)) {
-      if (![...planted, ...plantedWorthALook].some((clause) => clause.id === id)) {
+      if (![...planted, ...plantedWorthALook, ...plantedMultiplierNotes].some((clause) => clause.id === id)) {
         throw new Error(`Options name ${id}, which is not a planted cited clause in ${fixture.sidecar.document}.`);
       }
     }
@@ -168,7 +191,21 @@ export class SidecarModelClient implements ModelClient {
         };
       })
       .reverse();
-    const payload: ModelPayload = { riskFlags, worthALook };
+    // Multiplier notes are sent in reverse document order too.
+    const multiplierNotes = plantedMultiplierNotes
+      .map((clause): ModelMultiplierNote => {
+        const unit = unitFor(clause);
+        return {
+          unitId: unit.id,
+          quote: multiplierNoteQuotes[clause.id] ?? unit.text,
+          title: clause.id,
+          claims: [readOffClaimFor(clause), inferenceClaimFor(clause), ...(extraClaims[clause.id] ?? [])],
+        };
+      })
+      .reverse();
+    const payload: ModelPayload = onlyMultiplierNotes
+      ? { riskFlags: [], worthALook: [], multiplierNotes }
+      : { riskFlags, worthALook, multiplierNotes };
     this.payload = tamper ? tamper(structuredClone(payload)) : payload;
   }
 

@@ -1,6 +1,6 @@
 /**
  * What `analyse` returns. Cited finding types carry a required `source`; there is no way to build
- * a Risk flag or a Worth a look without one. Later finding types (Multiplier note, Missing protection,
+ * a Risk flag, a Worth a look or a Multiplier note without one. Later finding types (Missing protection,
  * Nice to have) are added as their own types beside `RiskFlag`, never as optional fields on it.
  */
 
@@ -66,6 +66,20 @@ export interface WorthALook {
   readonly source: SourceSentence;
 }
 
+/**
+ * A clause that does no harm alone but makes other harms worse: arbitration, a class-action waiver,
+ * unilateral amendment (ADR-0003). It cites its Source sentence, and it never enters the Risk flag
+ * ranking whatever its legal weight: it has no rank, no severity band and no Counter-offer.
+ */
+export interface MultiplierNote {
+  readonly kind: "multiplier-note";
+  /** What the clause does to the Signer's position if something else goes wrong, stated flat. */
+  readonly title: string;
+  /** What the note says about its Source sentence, in the model's order. Never empty. */
+  readonly claims: readonly [Claim, ...Claim[]];
+  readonly source: SourceSentence;
+}
+
 export interface RedLine {
   readonly text: string;
 }
@@ -74,4 +88,6 @@ export interface AnalysisResult {
   readonly riskFlags: readonly RiskFlag[];
   /** In the order the sentences appear in the Document. Not ranked. */
   readonly worthALook: readonly WorthALook[];
+  /** In the order the sentences appear in the Document. Not ranked. */
+  readonly multiplierNotes: readonly MultiplierNote[];
 }
