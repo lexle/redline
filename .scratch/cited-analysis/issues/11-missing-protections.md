@@ -8,22 +8,22 @@ field. It cites nothing because it asserts nothing about the text, and it sorts 
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** done (2026-09-14)
 
-- [ ] Missing protection is its own finding type with a stable identifier (`MP-01`, …). It has no
+- [x] Missing protection is its own finding type with a stable identifier (`MP-01`, …). It has no
       span and no Source sentence, and it states plainly that the Document does not address the
       matter.
-- [ ] The result type can express neither a Missing protection as a Risk flag with an empty Source
-      sentence, nor a Risk flag without one.
-- [ ] Every Missing protection carries a Proposed insertion, displayed as language not currently in
+- [x] The result type can express neither a Missing protection as a Risk flag with an empty Source
+      sentence, nor a Risk flag without one. (Proved at compile time with `@ts-expect-error`.)
+- [x] Every Missing protection carries a Proposed insertion, displayed as language not currently in
       the Document.
-- [ ] Missing protections are shown as a separate list from Risk flags and never merged into one
+- [x] Missing protections are shown as a separate list from Risk flags and never merged into one
       ranking.
-- [ ] The absences checked include at least payment timing and amount, kill fee or termination
+- [x] The absences checked include at least payment timing and amount, kill fee or termination
       compensation, a late-payment remedy, and scope-change or revision limits (PRD §5).
-- [ ] No synthetic section number, placeholder paragraph or virtual citation is written into the
+- [x] No synthetic section number, placeholder paragraph or virtual citation is written into the
       stored text or shown as a Source sentence. Test: the stored text is byte-identical before and
       after analysis.
-- [ ] Tests at the analysis seam, synthetic client: absences come back with no span, and a Document
+- [x] Tests at the analysis seam, synthetic client: absences come back with no span, and a Document
       that omits payment timing yields a payment-timing Missing protection.
-- [ ] The payment-absence corpus is run against the real model in ticket 16, not here.
+- [x] The payment-absence corpus is run against the real model in ticket 16, not here.

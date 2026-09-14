@@ -1,13 +1,19 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { analyse, AnalysisResponseError, CitationError } from "../../lib/analysis/analyse";
 import { segmentSentences } from "../../lib/analysis/segment";
 import { ANALYSIS_SCHEMA } from "../../lib/analysis/prompt";
+import type { MissingProtection, RiskFlag } from "../../lib/analysis/types";
 import {
   counterOfferFor,
   inferenceClaimFor,
+  inferenceClaimForAbsence,
   loadFixture,
+  proposedInsertionFor,
   readOffClaimFor,
   SidecarModelClient,
+  statementFor,
 } from "../support/sidecar-model-client";
 
 const adhesion = loadFixture("adhesion-contract");
@@ -613,5 +619,237 @@ describe("analyse: harm multipliers come back as Multiplier notes, outside the R
   it("returns no Multiplier notes for the clean agreement when the model finds none", async () => {
     const result = await analyse(clean.text, [], new SidecarModelClient(clean));
     expect(result.multiplierNotes).toEqual([]);
+  });
+});
+
+describe("analyse: Missing protections cite nothing and sit in their own list", () => {
+  const expectedMissing = adhesion.sidecar.expectedMissingProtections!;
+  const expectedFor = (kind: string) => expectedMissing.find((expected) => expected.id === kind)!;
+  /** The sidecar order with payment timing and amount moved to the front, as the product sorts them. */
+  const expectedOrder = [
+    "payment-timing",
+    "payment-amount",
+    ...expectedMissing.map((expected) => expected.id).filter((id) => id !== "payment-timing" && id !== "payment-amount").reverse(),
+  ];
+
+  it("yields a payment-timing Missing protection for the adhesion contract, which never says when the Contractor is paid", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
+
+    const timing = result.missingProtections.find((entry) => entry.protection === "payment-timing");
+    expect(timing).toBeDefined();
+    expect(timing!.kind).toBe("missing-protection");
+    expect(timing!.statement).toBe(statementFor(expectedFor("payment-timing")));
+    expect(timing!.proposedInsertion).toBe(proposedInsertionFor(expectedFor("payment-timing")));
+  });
+
+  it("returns every expected Missing protection with no source property at all and no unit id", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
+
+    expect(result.missingProtections.map((entry) => entry.protection).sort()).toEqual(
+      expectedMissing.map((expected) => expected.id).sort(),
+    );
+    for (const entry of result.missingProtections) {
+      expect("source" in entry).toBe(false);
+      expect("unitId" in entry).toBe(false);
+      expect("quote" in entry).toBe(false);
+      expect(Object.keys(entry).sort()).toEqual(["claims", "id", "kind", "proposedInsertion", "protection", "statement"]);
+    }
+  });
+
+  it("puts payment timing and amount first, keeps the model's order for the rest, and numbers them MP-01 onward", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
+
+    expect(result.missingProtections.map((entry) => entry.protection)).toEqual(expectedOrder);
+    expect(result.missingProtections.map((entry) => entry.id)).toEqual(["MP-01", "MP-02", "MP-03", "MP-04", "MP-05"]);
+  });
+
+  it("gives every Missing protection a non-blank Proposed insertion drafted for its own kind", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
+
+    expect(result.missingProtections).toHaveLength(expectedMissing.length);
+    for (const entry of result.missingProtections) {
+      expect(entry.proposedInsertion.trim()).not.toBe("");
+      expect(entry.proposedInsertion).toBe(proposedInsertionFor(expectedFor(entry.protection)));
+    }
+  });
+
+  it("never merges Missing protections into the Risk flag ranking", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
+
+    expect(result.riskFlags.map((flag) => flag.rank)).toEqual(plantedRiskFlags.map((clause) => clause.expectedRank));
+    for (const flag of result.riskFlags) {
+      expect(flag.kind).toBe("risk-flag");
+      expect(adhesion.text.slice(flag.source.start, flag.source.end)).toBe(flag.source.text);
+    }
+  });
+
+  it("returns an inference claim and withholds one that needs facts about the Signer, keeping the entry", async () => {
+    const leverageClaim = {
+      tier: "needs-signer-facts" as const,
+      text: "In your state, unpaid invoices can be recovered in small claims court within thirty days.",
+    };
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      payload.missingProtections.forEach((entry) => entry.claims.push(leverageClaim));
+      return payload;
+    });
+    const result = await analyse(adhesion.text, [], client);
+
+    for (const entry of result.missingProtections) {
+      expect(entry.claims).toEqual([inferenceClaimForAbsence(expectedFor(entry.protection))]);
+    }
+    expect(JSON.stringify(result)).not.toContain(leverageClaim.text);
+    expect(result.missingProtections).toHaveLength(expectedMissing.length);
+  });
+
+  it("fails as malformed when a Missing protection's claim is tagged read-off, since there is no sentence", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      payload.missingProtections[0].claims = [{ tier: "read-off", text: "The agreement never says when you are paid." }];
+      return payload;
+    });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain("read-off");
+  });
+
+  it("fails the whole analysis when a Proposed insertion is empty or only whitespace", async () => {
+    for (const blank of ["", "  \n\t"]) {
+      const client = new SidecarModelClient(adhesion, { proposedInsertions: { "kill-fee": blank } });
+
+      const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(AnalysisResponseError);
+      expect((failure as Error).message).toContain("proposedInsertion is blank");
+    }
+  });
+
+  it("fails the whole analysis when a Proposed insertion is missing", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      delete (payload.missingProtections[2] as { proposedInsertion?: string }).proposedInsertion;
+      return payload;
+    });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain("proposedInsertion is missing");
+  });
+
+  it("fails the whole analysis when the same protection kind comes back twice", async () => {
+    const client = new SidecarModelClient(adhesion, { duplicateProtections: ["payment-timing"] });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain("payment-timing is a duplicate");
+  });
+
+  it("fails the whole analysis when a Missing protection carries a unit id, rather than showing it as cited", async () => {
+    const client = new SidecarModelClient(adhesion, { attachUnitIdTo: ["late-payment-remedy"] });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain("unitId");
+    expect(failure).not.toBeInstanceOf(CitationError);
+  });
+
+  it("fails the whole analysis when a Missing protection carries only a quote", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      payload.missingProtections[1].quote = segmentSentences(adhesion.text)[0].text;
+      return payload;
+    });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain("quote");
+  });
+
+  it("fails the whole analysis when a protection kind is not one of the five", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      payload.missingProtections[0].protection = "confidentiality";
+      return payload;
+    });
+
+    await expect(analyse(adhesion.text, [], client)).rejects.toBeInstanceOf(AnalysisResponseError);
+  });
+
+  it("fails the analysis when the model's answer has no Missing protections list", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      delete (payload as Partial<typeof payload>).missingProtections;
+      return payload;
+    });
+
+    await expect(analyse(adhesion.text, [], client)).rejects.toBeInstanceOf(AnalysisResponseError);
+  });
+
+  it("leaves the Document text byte-identical: nothing is inserted, numbered or rewritten", async () => {
+    const onDisk = readFileSync(join(__dirname, "..", "fixtures", "adhesion-contract.txt"));
+    const documentText = onDisk.toString("utf8");
+    const before = `${documentText}`.slice(0);
+    const result = await analyse(documentText, [], new SidecarModelClient(adhesion));
+
+    expect(Buffer.from(documentText, "utf8").equals(onDisk)).toBe(true);
+    expect(documentText).toBe(before);
+    expect(result.missingProtections.length).toBeGreaterThan(0);
+    for (const entry of result.missingProtections) {
+      expect(documentText).not.toContain(entry.proposedInsertion);
+    }
+    // Every cited finding still points at the original offsets of the untouched text.
+    for (const cited of [...result.riskFlags, ...result.worthALook, ...result.multiplierNotes]) {
+      expect(onDisk.toString("utf8").slice(cited.source.start, cited.source.end)).toBe(cited.source.text);
+    }
+  });
+
+  it("returns no Missing protections for the clean agreement, which addresses all five", async () => {
+    const result = await analyse(clean.text, [], new SidecarModelClient(clean));
+    expect(result.missingProtections).toEqual([]);
+    for (const present of (clean.sidecar as unknown as { presentProtections: { sentence: string }[] }).presentProtections) {
+      expect(clean.text).toContain(present.sentence);
+    }
+  });
+
+  it("asks the model for Missing protections as their own required list with no unit id or quote", async () => {
+    const client = new SidecarModelClient(adhesion);
+    await analyse(adhesion.text, [], client);
+
+    const schema = client.requests[0].schema as {
+      required: string[];
+      properties: {
+        missingProtections: {
+          items: { required: string[]; additionalProperties: boolean; properties: { protection: { enum: string[] } } };
+        };
+      };
+    };
+    expect(schema.required).toContain("missingProtections");
+    const item = schema.properties.missingProtections.items;
+    expect(item.required).toEqual(expect.arrayContaining(["protection", "statement", "proposedInsertion"]));
+    expect(item.additionalProperties).toBe(false);
+    for (const field of ["unitId", "quote", "source", "rank"]) {
+      expect(Object.keys(item.properties)).not.toContain(field);
+    }
+    expect(item.properties.protection.enum).toEqual(
+      expect.arrayContaining(["payment-timing", "payment-amount", "kill-fee", "late-payment-remedy", "scope-revision-limits"]),
+    );
+  });
+
+  it("cannot express a Missing protection with a Source sentence, or a Risk flag without one (checked by tsc)", () => {
+    const protection: MissingProtection = {
+      kind: "missing-protection",
+      id: "MP-01",
+      protection: "payment-timing",
+      statement: "The agreement never says when the Contractor is paid.",
+      claims: [],
+      proposedInsertion: "The Client shall pay each invoice within [number] days.",
+      // @ts-expect-error A Missing protection has no source field.
+      source: { start: 0, end: 1, text: "F" },
+    };
+    // @ts-expect-error A Risk flag without a source is not a Risk flag.
+    const uncited: RiskFlag = {
+      kind: "risk-flag",
+      rank: 1,
+      severityBand: "high",
+      title: "Uncited",
+      claims: [{ tier: "read-off", text: "No sentence." }],
+      counterOffer: "Replacement wording.",
+    };
+    expect("source" in protection).toBe(true);
+    expect("source" in uncited).toBe(false);
   });
 });

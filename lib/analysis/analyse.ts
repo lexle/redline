@@ -5,7 +5,10 @@ import type { SentenceUnit } from "./segment.ts";
 import type {
   AnalysisResult,
   Claim,
+  InferenceClaim,
+  MissingProtection,
   MultiplierNote,
+  ProtectionKind,
   ProvenanceTier,
   RedLine,
   RiskFlag,
@@ -13,7 +16,7 @@ import type {
   SourceSentence,
   WorthALook,
 } from "./types.ts";
-import { PROVENANCE_TIERS, SEVERITY_BANDS } from "./types.ts";
+import { PROTECTION_KINDS, PROVENANCE_TIERS, SEVERITY_BANDS } from "./types.ts";
 
 /** The finding types that cite a Source sentence and so go through citation validation. */
 export type CitedFindingType = "risk-flag" | "worth-a-look" | "multiplier-note";
@@ -77,6 +80,14 @@ interface RawCitedFinding {
   claims: RawClaim[];
 }
 
+/** No unitId and no quote: a Missing protection that carries either is rejected as malformed. */
+interface RawMissingProtection {
+  protection: ProtectionKind;
+  statement: string;
+  claims: RawClaim[];
+  proposedInsertion: string;
+}
+
 interface RawRiskFlag extends RawCitedFinding {
   severityBand: SeverityBand;
   rank: number;
@@ -103,6 +114,7 @@ export async function analyse(
   const rawFlags = readRiskFlags(response);
   const rawWorthALook = readUnrankedFindings(response, "worthALook", "worth-a-look");
   const rawMultiplierNotes = readUnrankedFindings(response, "multiplierNotes", "multiplier-note");
+  const rawMissingProtections = readMissingProtections(response);
 
   // Every cited finding type goes through one validation pass, so a single CitationError names every
   // failed finding of any type.
@@ -171,7 +183,40 @@ export async function analyse(
     source: sourceOf(documentText, unit),
   }));
 
-  return { riskFlags, worthALook, multiplierNotes };
+  return { riskFlags, worthALook, multiplierNotes, missingProtections: toMissingProtections(rawMissingProtections) };
+}
+
+/**
+ * Missing protections sort in their own list, never merged with the Risk flag ranking (ADR-0005).
+ * Payment timing, then payment amount, come first because they carry the largest measured harm
+ * (PRD §5); the rest keep the model's order. Identifiers are assigned after sorting, so `MP-01` is
+ * always the first entry shown.
+ *
+ * Nothing here reads or touches the Document text: a Missing protection has no offsets to resolve,
+ * and its Proposed insertion is returned beside the text, never written into it.
+ */
+function toMissingProtections(raw: readonly RawMissingProtection[]): MissingProtection[] {
+  const paymentFirst: ProtectionKind[] = ["payment-timing", "payment-amount"];
+  const priority = (entry: RawMissingProtection) => {
+    const position = paymentFirst.indexOf(entry.protection);
+    return position === -1 ? paymentFirst.length : position;
+  };
+  return raw
+    .map((entry, index) => ({ entry, index }))
+    .sort((a, b) => priority(a.entry) - priority(b.entry) || a.index - b.index)
+    .map(({ entry }, position) => ({
+      kind: "missing-protection",
+      id: `MP-${String(position + 1).padStart(2, "0")}`,
+      protection: entry.protection,
+      statement: entry.statement.trim(),
+      // Provenance (ADR-0007) for an absence: the statement is a claim about the Document as a whole,
+      // checkable by reading all of it, so it is stated flat. No claim can be read-off, because there
+      // is no sentence; a read-off tier was already rejected as malformed. Claims that depend on the
+      // Signer's facts are withheld here, and unlike a cited finding, a Missing protection left with
+      // no claims still stands: its statement and Proposed insertion carry it, not its claims.
+      claims: entry.claims.filter((claim): claim is InferenceClaim => claim.tier === "inference"),
+      proposedInsertion: entry.proposedInsertion.trim(),
+    }));
 }
 
 function failIfCitedTwice(
@@ -252,7 +297,62 @@ function isShown(claim: RawClaim): claim is Claim {
   return claim.tier !== "needs-signer-facts";
 }
 
-function readList(response: unknown, key: "riskFlags" | "worthALook" | "multiplierNotes"): unknown[] {
+const MISSING_PROTECTION_FIELDS = ["protection", "statement", "claims", "proposedInsertion"] as const;
+
+/**
+ * Reads the Missing protections. Any of these fails the whole analysis as malformed: an unknown
+ * protection kind, the same kind twice, a blank statement, a missing or blank Proposed insertion, a
+ * read-off claim, or any field beyond the four above. A unit id or quote on a Missing protection
+ * would be a citation of text the entry claims is absent, so it is never ignored.
+ */
+function readMissingProtections(response: unknown): RawMissingProtection[] {
+  const seen = new Map<ProtectionKind, number>();
+  return readList(response, "missingProtections").map((item, index) => {
+    const problems: string[] = [];
+    if (typeof item !== "object" || item === null || Array.isArray(item)) {
+      throw new AnalysisResponseError(`Missing protection #${index} in the model's answer is malformed: it is not an object.`);
+    }
+    const entry = item as Record<string, unknown>;
+    for (const key of Object.keys(entry)) {
+      if (!(MISSING_PROTECTION_FIELDS as readonly string[]).includes(key)) {
+        problems.push(
+          key === "unitId" || key === "quote"
+            ? `it has a ${key}, but a missing protection cites nothing`
+            : `it has an unexpected field ${JSON.stringify(key)}`,
+        );
+      }
+    }
+    if (!PROTECTION_KINDS.includes(entry.protection as ProtectionKind)) {
+      problems.push("protection is not a known kind");
+    } else {
+      const kind = entry.protection as ProtectionKind;
+      if (seen.has(kind)) problems.push(`protection ${kind} is a duplicate of missing protection #${seen.get(kind)}`);
+      else seen.set(kind, index);
+    }
+    if (typeof entry.statement !== "string" || entry.statement.trim() === "") problems.push("statement is blank");
+    if (typeof entry.proposedInsertion !== "string") {
+      problems.push("proposedInsertion is missing");
+    } else if (entry.proposedInsertion.trim() === "") {
+      problems.push("proposedInsertion is blank");
+    }
+    if (!Array.isArray(entry.claims)) {
+      problems.push("claims is not a list");
+    } else {
+      entry.claims.forEach((claim: unknown, claimIndex: number) => {
+        const { tier, text } = (claim ?? {}) as { tier?: unknown; text?: unknown };
+        if (tier === "read-off") problems.push(`claim ${claimIndex} is read-off, but there is no sentence to read it off`);
+        else if (!PROVENANCE_TIERS.includes(tier as ProvenanceTier)) problems.push(`claim ${claimIndex} has no known tier`);
+        if (typeof text !== "string" || text.trim() === "") problems.push(`claim ${claimIndex} has no text`);
+      });
+    }
+    if (problems.length > 0) {
+      throw new AnalysisResponseError(`Missing protection #${index} in the model's answer is malformed: ${problems.join(", ")}.`);
+    }
+    return entry as unknown as RawMissingProtection;
+  });
+}
+
+function readList(response: unknown, key: "riskFlags" | "worthALook" | "multiplierNotes" | "missingProtections"): unknown[] {
   if (typeof response !== "object" || response === null || !Array.isArray((response as Record<string, unknown>)[key])) {
     throw new AnalysisResponseError(`The model's answer has no ${key} list.`);
   }

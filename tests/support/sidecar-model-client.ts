@@ -13,9 +13,17 @@ export interface PlantedClause {
   why: string;
 }
 
+export interface ExpectedMissingProtection {
+  /** A protection kind, e.g. "payment-timing". */
+  id: string;
+  why: string;
+}
+
 export interface Sidecar {
   document: string;
   plantedClauses: PlantedClause[];
+  /** Absent from a fixture that addresses every protection. */
+  expectedMissingProtections?: ExpectedMissingProtection[];
 }
 
 export interface Fixture {
@@ -64,10 +72,21 @@ export interface ModelMultiplierNote {
   claims: ModelClaim[];
 }
 
+export interface ModelMissingProtection {
+  protection: string;
+  statement: string;
+  claims: ModelClaim[];
+  proposedInsertion: string;
+  /** Never sent by a correct model; present only so tests can attach one. */
+  unitId?: string;
+  quote?: string;
+}
+
 export interface ModelPayload {
   riskFlags: ModelRiskFlag[];
   worthALook: ModelWorthALook[];
   multiplierNotes: ModelMultiplierNote[];
+  missingProtections: ModelMissingProtection[];
 }
 
 export interface SidecarClientOptions {
@@ -86,6 +105,12 @@ export interface SidecarClientOptions {
   multiplierNoteQuotes?: Record<string, string>;
   /** Send the planted Multiplier notes with an empty riskFlags list, as a model would for a Document with no ranked harm. */
   onlyMultiplierNotes?: boolean;
+  /** Proposed insertion text to send instead of the derived one, keyed by protection kind (e.g. "" or "  "). */
+  proposedInsertions?: Record<string, string>;
+  /** Protection kinds sent a second time, as a duplicate entry at the end of the list. */
+  duplicateProtections?: string[];
+  /** Protection kinds whose Missing protection is sent with the unit id (and quote) of the Document's first sentence. */
+  attachUnitIdTo?: string[];
   /** Corrupt or reshape the payload before it is returned. */
   tamper?: (payload: ModelPayload) => ModelPayload;
 }
@@ -103,6 +128,21 @@ export function inferenceClaimFor(clause: PlantedClause): ModelClaim {
 /** The Counter-offer the stub gives each planted flag, built from the clause's id and type. */
 export function counterOfferFor(clause: PlantedClause): string {
   return `${clause.id}: in place of the ${clause.clauseType.replace(/-/g, " ")} clause, the Contractor proposes the following wording, with its obligation limited to [amount].`;
+}
+
+/** The statement the stub gives each expected Missing protection, built from its kind. */
+export function statementFor(expected: ExpectedMissingProtection): string {
+  return `The Document does not address ${expected.id.replace(/-/g, " ")}.`;
+}
+
+/** The inference claim the stub gives each expected Missing protection: the sidecar's reason it matters. */
+export function inferenceClaimForAbsence(expected: ExpectedMissingProtection): ModelClaim {
+  return { tier: "inference", text: expected.why };
+}
+
+/** The Proposed insertion the stub gives each expected Missing protection, built from its kind. */
+export function proposedInsertionFor(expected: ExpectedMissingProtection): string {
+  return `${expected.id}: the Client shall provide for ${expected.id.replace(/-/g, " ")} within [number] days.`;
 }
 
 /**
@@ -125,8 +165,17 @@ export class SidecarModelClient implements ModelClient {
       worthALookQuotes = {},
       multiplierNoteQuotes = {},
       onlyMultiplierNotes = false,
+      proposedInsertions = {},
+      duplicateProtections = [],
+      attachUnitIdTo = [],
       tamper,
     } = typeof options === "function" ? { tamper: options } : options;
+    const expectedMissing = fixture.sidecar.expectedMissingProtections ?? [];
+    for (const kind of [...Object.keys(proposedInsertions), ...duplicateProtections, ...attachUnitIdTo]) {
+      if (!expectedMissing.some((expected) => expected.id === kind)) {
+        throw new Error(`Options name ${kind}, which is not an expected missing protection in ${fixture.sidecar.document}.`);
+      }
+    }
     const units = segmentSentences(fixture.text);
     const planted = fixture.sidecar.plantedClauses.filter((clause) => clause.findingType === "risk-flag");
     const plantedWorthALook = fixture.sidecar.plantedClauses.filter((clause) => clause.findingType === "worth-a-look");
@@ -203,9 +252,29 @@ export class SidecarModelClient implements ModelClient {
         };
       })
       .reverse();
+    // Missing protections are sent in reverse sidecar order, so payment timing and amount arrive last
+    // and the payment-first sort is exercised.
+    const missingProtections = expectedMissing
+      .map((expected): ModelMissingProtection => {
+        const entry: ModelMissingProtection = {
+          protection: expected.id,
+          statement: statementFor(expected),
+          claims: [inferenceClaimForAbsence(expected)],
+          proposedInsertion: proposedInsertions[expected.id] ?? proposedInsertionFor(expected),
+        };
+        if (attachUnitIdTo.includes(expected.id)) {
+          entry.unitId = units[0].id;
+          entry.quote = units[0].text;
+        }
+        return entry;
+      })
+      .reverse();
+    for (const kind of duplicateProtections) {
+      missingProtections.push(structuredClone(missingProtections.find((entry) => entry.protection === kind)!));
+    }
     const payload: ModelPayload = onlyMultiplierNotes
-      ? { riskFlags: [], worthALook: [], multiplierNotes }
-      : { riskFlags, worthALook, multiplierNotes };
+      ? { riskFlags: [], worthALook: [], multiplierNotes, missingProtections }
+      : { riskFlags, worthALook, multiplierNotes, missingProtections };
     this.payload = tamper ? tamper(structuredClone(payload)) : payload;
   }
 

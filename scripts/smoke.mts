@@ -51,6 +51,14 @@ try {
     }
     console.log(`   Source [${note.source.start}, ${note.source.end}): "${note.source.text}"\n`);
   }
+  console.log(`${result.missingProtections.length} Missing protections, their own list, citing nothing\n`);
+  for (const protection of result.missingProtections) {
+    console.log(`${protection.id} [${protection.protection}] ${protection.statement}`);
+    for (const claim of protection.claims) {
+      console.log(`   (${claim.tier}) ${claim.text}`);
+    }
+    console.log(`   Proposed insertion (not in the Document): ${protection.proposedInsertion}\n`);
+  }
   process.exit(0);
 } catch (error) {
   if (error instanceof CitationError) {

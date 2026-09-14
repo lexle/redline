@@ -3,7 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { AnalyseFailureCode, AnalyseRequestBody, AnalyseResponseBody } from "../../../lib/analysis/api";
-import type { AnalysisResult, Claim, MultiplierNote, SeverityBand, WorthALook } from "../../../lib/analysis/types";
+import type {
+  AnalysisResult,
+  Claim,
+  InferenceClaim,
+  MissingProtection,
+  MultiplierNote,
+  ProtectionKind,
+  SeverityBand,
+  WorthALook,
+} from "../../../lib/analysis/types";
 import styles from "../app.module.css";
 
 type FailureReason = AnalyseFailureCode | "not-txt" | "empty-file" | "unreadable-file" | "offline";
@@ -31,6 +40,14 @@ const FAILURE_COPY: Record<FailureReason, string> = {
 const SEVERITY_COPY: Record<SeverityBand, string> = {
   high: "Could cost you money with no ceiling",
   medium: "Hard or impossible to get out of",
+};
+
+const PROTECTION_COPY: Record<ProtectionKind, string> = {
+  "payment-timing": "When you get paid",
+  "payment-amount": "How much you get paid",
+  "kill-fee": "Pay for work done if the job ends early",
+  "late-payment-remedy": "What happens if you're paid late",
+  "scope-revision-limits": "Limits on revisions and extra work",
 };
 
 export default function AnalysePage() {
@@ -139,6 +156,7 @@ export default function AnalysePage() {
         {screen.state === "result" && (
           <>
             <RiskFlagList fileName={screen.fileName} result={screen.result} />
+            <MissingProtectionList fileName={screen.fileName} entries={screen.result.missingProtections} />
             <UnrankedSection
               heading="Worth a look"
               explainer="These clauses are one-sided or unusual, but each has a limit and a way out, so they aren’t ranked with the risk flags."
@@ -186,7 +204,7 @@ function RiskFlagList({ fileName, result }: { fileName: string; result: Analysis
                   <p>“{flag.source.text}”</p>
                 </blockquote>
                 <p className={styles.meta}>Quoted word for word from your document</p>
-                <CounterOffer text={flag.counterOffer} rank={flag.rank} />
+                <CounterOffer text={flag.counterOffer} idSuffix={String(flag.rank)} heading="Counter-offer" />
               </div>
             </li>
           ))}
@@ -196,8 +214,53 @@ function RiskFlagList({ fileName, result }: { fileName: string; result: Analysis
   );
 }
 
+/**
+ * Missing protections (ADR-0005): their own list, never merged into the ranking. Each is an outlined
+ * flag with no line under it: no rank tip, no magenta fill, no Source sentence, because it cites
+ * nothing. Its Proposed insertion reuses the Counter-offer box.
+ */
+function MissingProtectionList({ fileName, entries }: { fileName: string; entries: readonly MissingProtection[] }) {
+  const count = entries.length;
+  return (
+    <div className={styles.missing}>
+      <h2 className={styles.listHeading}>
+        {count === 0
+          ? `No missing protections in ${fileName}`
+          : `${fileName} leaves out ${count} ${count === 1 ? "protection" : "protections"}`}
+      </h2>
+      {count === 0 ? (
+        <p className={styles.quiet}>
+          Your document covers when and how much you&rsquo;re paid, pay for work done if the job ends early, a
+          consequence for late payment, and a limit on revisions.
+        </p>
+      ) : (
+        <>
+          <p className={styles.meta}>
+            Your document doesn&rsquo;t mention any of these. Under each one is wording Redline drafted, and that
+            wording isn&rsquo;t in your document.
+          </p>
+          <ul className={styles.missingList}>
+            {entries.map((entry) => (
+              <li key={entry.id} className={styles.missingEntry}>
+                <span className={styles.outlineTip} aria-hidden="true" />
+                <div className={styles.flagBody}>
+                  <p className={styles.notInDocument}>Not in your document</p>
+                  <h3 className={styles.flagTitle}>{PROTECTION_COPY[entry.protection]}</h3>
+                  <p className={styles.statement}>{entry.statement}</p>
+                  {entry.claims.length > 0 && <ClaimList claims={entry.claims} />}
+                  <CounterOffer text={entry.proposedInsertion} idSuffix={entry.id} heading="Proposed insertion" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Read-off claims stand flat; inference claims carry a label in words, not a hedge. */
-function ClaimList({ claims }: { claims: readonly Claim[] }) {
+function ClaimList({ claims }: { claims: readonly (Claim | InferenceClaim)[] }) {
   return (
     <ul className={styles.claims}>
       {claims.map((claim, index) =>
@@ -259,10 +322,13 @@ function UnrankedSection({
 
 type CopyState = "idle" | "copied" | "failed";
 
-/** Redline's drafted replacement wording for one flag, set in Archivo because it is not the Document's text. */
-function CounterOffer({ text, rank }: { text: string; rank: number }) {
+/**
+ * Redline's drafted wording with a one-action copy, set in Archivo because it is not the Document's
+ * text: a Counter-offer for a Risk flag, or a Proposed insertion for a Missing protection.
+ */
+function CounterOffer({ text, idSuffix, heading }: { text: string; idSuffix: string; heading: string }) {
   const [copyState, setCopyState] = useState<CopyState>("idle");
-  const headingId = `counter-offer-${rank}`;
+  const headingId = `drafted-${idSuffix}`;
 
   useEffect(() => {
     if (copyState !== "copied") return;
@@ -283,7 +349,7 @@ function CounterOffer({ text, rank }: { text: string; rank: number }) {
     <section className={styles.counterOffer} aria-labelledby={headingId}>
       <div className={styles.counterOfferHead}>
         <h4 id={headingId} className={styles.counterOfferHeading}>
-          Counter-offer
+          {heading}
         </h4>
         <button type="button" className={styles.copyButton} onClick={copy} data-state={copyState}>
           {copyState === "copied" ? "Copied" : "Copy"}

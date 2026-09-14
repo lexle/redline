@@ -1,7 +1,7 @@
 import type { JsonCompletionRequest, JsonSchema } from "../model/model-client.ts";
 import type { SentenceUnit } from "./segment.ts";
 import type { RedLine } from "./types.ts";
-import { PROVENANCE_TIERS, SEVERITY_BANDS } from "./types.ts";
+import { PROTECTION_KINDS, PROVENANCE_TIERS, SEVERITY_BANDS } from "./types.ts";
 
 export const ANALYSIS_SCHEMA_NAME = "document_analysis";
 
@@ -32,8 +32,50 @@ const CLAIMS_SCHEMA: JsonSchema = {
 export const ANALYSIS_SCHEMA: JsonSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["riskFlags", "worthALook", "multiplierNotes"],
+  required: ["riskFlags", "worthALook", "multiplierNotes", "missingProtections"],
   properties: {
+    missingProtections: {
+      type: "array",
+      description:
+        "Protections the document as a whole does not address. No unit id and no quote: these cite nothing. At most one per protection kind.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["protection", "statement", "claims", "proposedInsertion"],
+        properties: {
+          protection: { type: "string", enum: [...PROTECTION_KINDS] },
+          statement: {
+            type: "string",
+            description:
+              'One flat sentence saying the document does not address the matter, e.g. "The agreement never says when the Contractor is paid." No section numbers, no location in the document.',
+          },
+          claims: {
+            type: "array",
+            description:
+              "How the absence would likely play out, one short sentence per item. May be empty. Never read-off: there is no sentence to read it off.",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["tier", "text"],
+              properties: {
+                tier: {
+                  type: "string",
+                  enum: ["inference", "needs-signer-facts"],
+                  description:
+                    "inference: how the absence would likely play out. needs-signer-facts: depends on the Signer's jurisdiction, industry or leverage.",
+                },
+                text: { type: "string" },
+              },
+            },
+          },
+          proposedInsertion: {
+            type: "string",
+            description:
+              "Clause text the Signer could ask the other side to add, written as contract wording using the document's names for the parties. Never advice. Never empty.",
+          },
+        },
+      },
+    },
     riskFlags: {
       type: "array",
       items: {
@@ -98,7 +140,7 @@ export const ANALYSIS_SCHEMA: JsonSchema = {
   },
 };
 
-const SYSTEM_PROMPT = `You read a document that a freelancer or small-business owner (the Signer) is about to sign. It was drafted by the other side. You find the sentences that could hurt the Signer and return them as risk flags, you list the sentences that are one-sided or unusual but bounded under worth a look, and you list the sentences that make other harms worse under multiplier notes.
+const SYSTEM_PROMPT = `You read a document that a freelancer or small-business owner (the Signer) is about to sign. It was drafted by the other side. You find the sentences that could hurt the Signer and return them as risk flags, you list the sentences that are one-sided or unusual but bounded under worth a look, you list the sentences that make other harms worse under multiplier notes, and you list the protections the document fails to give the Signer at all under missing protections.
 
 A sentence earns a risk flag only when a plausible bad outcome either
 - costs the Signer money with no ceiling (severity band "high"), or
@@ -138,6 +180,21 @@ Counter-offers:
 - Rely only on what the cited sentence says. Do not assert anything else about the document, and do not refer to other sections by number unless the cited sentence names them.
 - Do not invent facts about the Signer, their business, their jurisdiction or their fees. Where the wording needs a figure or date the document does not give, leave a bracketed blank such as "[amount]".
 
+Missing protections:
+- Check whether the document, read as a whole, addresses each of these protections for the Signer:
+  - "payment-timing": when the Signer is paid (for example, invoices due within a stated number of days).
+  - "payment-amount": how much the Signer is paid (a fee, a rate or an amount).
+  - "kill-fee": whether the Signer is paid for work done if the agreement is ended or the project is cancelled.
+  - "late-payment-remedy": any consequence for paying the Signer late, such as interest, a late fee or a right to pause work.
+  - "scope-revision-limits": a limit on revisions or on added work, or a price for changes in scope.
+- Raise a missing protection only when no sentence anywhere in the document addresses the matter. A sentence that addresses it, even on poor terms, means it is not missing; judge poor terms under risk flags instead. A reference that leaves the matter to another document (for example "as set out in the Statement of Work") without stating it does not address it.
+- At most one missing protection per kind. Only these five kinds exist.
+- A missing protection cites nothing. Give it no unit id and no quote, never invent a section number, and never say where in the document the term would go or claim that any text sits anywhere.
+- "statement" is one flat sentence saying the document does not address the matter, e.g. "The agreement never says when the Contractor is paid." Do not hedge it.
+- "claims" may explain how the absence would likely play out, tagged "inference". Anything that depends on the Signer's jurisdiction, industry or leverage is tagged "needs-signer-facts" and is never shown. Never tag a missing protection's claim "read-off".
+- "proposedInsertion" is clause text the Signer could ask the other side to add, written as contract wording with the document's own names for the parties. Not advice, not an explanation, no "you should". Where it needs a figure or date the document does not give, leave a bracketed blank such as "[number] days". Never leave it empty.
+
+- Return an empty missingProtections array when the document addresses all five.
 - If no sentence meets the test, return an empty riskFlags array. A clean document is a real result. Likewise, return an empty worthALook array when no bounded one-sided or unusual clause is present, and an empty multiplierNotes array when the document has no arbitration, class-action waiver or unilateral amendment clause.`;
 
 export function buildAnalysisRequest(units: readonly SentenceUnit[], redLines: readonly RedLine[]): JsonCompletionRequest {

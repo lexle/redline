@@ -1,7 +1,8 @@
 /**
  * What `analyse` returns. Cited finding types carry a required `source`; there is no way to build
- * a Risk flag, a Worth a look or a Multiplier note without one. Later finding types (Missing protection,
- * Nice to have) are added as their own types beside `RiskFlag`, never as optional fields on it.
+ * a Risk flag, a Worth a look or a Multiplier note without one. Absence types (Missing protection, and
+ * later Nice to have) are their own types beside `RiskFlag` with no `source` field at all, never an
+ * optional citation on a cited type.
  */
 
 /** The exact sentence a finding came from: `documentText.slice(start, end) === text`. */
@@ -80,11 +81,68 @@ export interface MultiplierNote {
   readonly source: SourceSentence;
 }
 
+/**
+ * The protections Redline checks a Document for (PRD §5). A closed set: the model must pick one of
+ * these, and there is no "other". Every Missing protection then belongs to a list the product can
+ * name in full, and an absence outside the list is not a harm the research measured. Minor
+ * absences belong to Nice to have (ADR-0008), not here.
+ */
+export type ProtectionKind =
+  | "payment-timing"
+  | "payment-amount"
+  | "kill-fee"
+  | "late-payment-remedy"
+  | "scope-revision-limits";
+
+/** In the order they sort: payment timing and amount first, because they carry the largest measured harm. */
+export const PROTECTION_KINDS: readonly ProtectionKind[] = [
+  "payment-timing",
+  "payment-amount",
+  "kill-fee",
+  "late-payment-remedy",
+  "scope-revision-limits",
+];
+
+/** A claim that is not read off any sentence. The only tier a Missing protection's claims can have. */
+export interface InferenceClaim {
+  readonly tier: "inference";
+  readonly text: string;
+}
+
+/**
+ * Something harmful the Document fails to say (ADR-0005). A different kind of object from a Risk
+ * flag, not a Risk flag with its citation left empty: it has no `source` field at all, and no unit
+ * id, because it asserts nothing about any sentence in the text.
+ *
+ * Provenance (ADR-0007): the statement that the Document does not address the matter cannot be
+ * read off a sentence, since there is no sentence. It is a claim about the Document as a whole,
+ * which the Signer can check by reading the whole Document, so it is stated flat, with no hedge.
+ * The claims that follow it can only be inference, because read-off needs a sentence to read off;
+ * claims needing facts about the Signer are withheld like everywhere else.
+ */
+export interface MissingProtection {
+  readonly kind: "missing-protection";
+  /** `MP-01`, `MP-02`, ... assigned by `analyse` in result order. */
+  readonly id: string;
+  readonly protection: ProtectionKind;
+  /** A plain statement that the Document does not address the matter. Never blank. */
+  readonly statement: string;
+  /** How the absence would likely play out, in the model's order. May be empty. */
+  readonly claims: readonly InferenceClaim[];
+  /**
+   * Drafted clause language the Signer could ask to add. Redline's words, never in the Document,
+   * and never written into the stored text. Required and never blank.
+   */
+  readonly proposedInsertion: string;
+}
+
 export interface RedLine {
   readonly text: string;
 }
 
 export interface AnalysisResult {
+  /** Their own list, never merged into the Risk flag ranking (ADR-0005). */
+  readonly missingProtections: readonly MissingProtection[];
   readonly riskFlags: readonly RiskFlag[];
   /** In the order the sentences appear in the Document. Not ranked. */
   readonly worthALook: readonly WorthALook[];

@@ -345,6 +345,52 @@
   overflow-wrap: anywhere;
 }
 
+/* Missing protections: outlined flags with no line under them. The tip is a 2px stroke of
+   --tape-on-desk (the stronger tape reserved for the desk) with no fill and no number, so it reads
+   as flag material but never as a ranked, magenta-filled Risk flag. No quote block: nothing is cited. */
+.missing {
+  margin-top: 32px;
+}
+
+.missingList {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.missingEntry {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 0;
+  border: 1px solid rgb(255 255 255 / 0.12);
+}
+
+.outlineTip {
+  display: block;
+  margin: 12px 10px auto;
+  height: 28px;
+  box-shadow: inset 0 0 0 2px var(--tape-on-desk);
+}
+
+.notInDocument {
+  display: inline-block;
+  margin: 0 0 6px;
+  padding: 1px 6px;
+  border: 1px dashed rgb(255 255 255 / 0.4);
+  color: var(--desk-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.statement {
+  margin: 6px 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
 /* Worth a look: bounded clauses, quieter than Risk flags. No rank, no magenta, collapsed by default. */
 .unranked {
   margin-top: 28px;
