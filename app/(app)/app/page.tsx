@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import type { AnalyseFailureCode, AnalyseResponseBody } from "../../../lib/analysis/api";
 import { buildAnalyseRequestBody, isBlankDocument } from "../../../lib/analysis/request";
-import { ExtractionError, extractText } from "../../../lib/extraction/extract-text";
+import { ExtractionError, documentFormat, extractText } from "../../../lib/extraction/extract-text";
 import type { Extraction, ExtractionErrorCode } from "../../../lib/extraction/extract-text";
 import type { HarmCheck } from "../../../lib/analysis/checks";
 import type {
@@ -38,13 +38,14 @@ type Screen =
   | { state: "idle" }
   | { state: "extracting"; fileName: string }
   | { state: "analysing"; fileName: string }
-  | { state: "scan"; fileName: string }
+  | { state: "scan"; fileName: string; format: "pdf" | "docx" }
   | { state: "result"; fileName: string; text: string; result: AnalysisResult }
   | { state: "failed"; fileName: string | null; reason: FailureReason };
 
 const FAILURE_COPY: Record<FailureReason, string> = {
-  "unsupported-type": "Redline reads .txt and PDF files. Choose one of those, or paste the text.",
+  "unsupported-type": "Redline reads .txt, PDF and Word (.docx) files. Choose one of those, or paste the text.",
   "invalid-pdf": "This PDF won't open. It may be damaged or password protected.",
+  "invalid-docx": "This Word file won't open. It may be damaged or password protected.",
   "empty-file": "That file has no text in it.",
   "unreadable-file": "Your browser couldn't read that file. Try choosing it again.",
   offline: "Couldn't reach Redline. Check your connection and try again.",
@@ -114,7 +115,7 @@ function joinList(items: readonly string[], conjunction = "and"): string {
   return `${items.slice(0, -1).join(", ")} ${conjunction} ${items[items.length - 1]}`;
 }
 
-const EXTRACTION_FAILURES: readonly FailureReason[] = ["unsupported-type", "invalid-pdf", "unreadable-file", "empty-file"];
+const EXTRACTION_FAILURES: readonly FailureReason[] = ["unsupported-type", "invalid-pdf", "invalid-docx", "unreadable-file", "empty-file"];
 
 function isExtractionFailure(reason: FailureReason): boolean {
   return EXTRACTION_FAILURES.includes(reason);
@@ -147,7 +148,7 @@ export default function AnalysePage() {
       return;
     }
     if (extraction.kind === "no-text") {
-      setScreen({ state: "scan", fileName });
+      setScreen({ state: "scan", fileName, format: documentFormat(file) === "docx" ? "docx" : "pdf" });
       return;
     }
     const text = extraction.text;
@@ -207,19 +208,19 @@ export default function AnalysePage() {
           Check a document
         </h1>
         <p className={styles.lede}>
-          Pick a .txt or PDF file, or paste the text. Your browser sends Redline only the text.
+          Pick a .txt, PDF or Word (.docx) file, or paste the text. Your browser sends Redline only the text.
         </p>
         <input
           ref={inputRef}
           id="document-file"
           className={styles.fileInput}
           type="file"
-          accept=".txt,text/plain,.pdf,application/pdf"
+          accept=".txt,text/plain,.pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           onChange={handleFile}
           disabled={busy}
         />
         <label htmlFor="document-file" className={styles.fileButton} data-disabled={busy || undefined}>
-          {screen.state === "idle" ? "Choose a .txt or PDF file" : "Choose another file"}
+          {screen.state === "idle" ? "Choose a .txt, PDF or Word file" : "Choose another file"}
         </label>
 
         <form className={styles.paste} onSubmit={handlePaste} noValidate>
@@ -268,11 +269,23 @@ export default function AnalysePage() {
 
         {screen.state === "scan" && (
           <div className={styles.failure} role="alert">
-            <h2 className={styles.failureHeading}>This looks like a scan</h2>
-            <p className={styles.failureText}>
-              Redline can&apos;t read {screen.fileName}. At least one page is an image with no text in it, so
-              nothing was checked. Choose a copy with text you can select, or paste the text.
-            </p>
+            {screen.format === "docx" ? (
+              <>
+                <h2 className={styles.failureHeading}>No text in this Word file</h2>
+                <p className={styles.failureText}>
+                  Redline can&apos;t read {screen.fileName}. It has pictures or blank space but no text, so nothing
+                  was checked. If it&apos;s a picture of a page, paste the text or choose a copy with typed text.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className={styles.failureHeading}>This looks like a scan</h2>
+                <p className={styles.failureText}>
+                  Redline can&apos;t read {screen.fileName}. At least one page is an image with no text in it, so
+                  nothing was checked. Choose a copy with text you can select, or paste the text.
+                </p>
+              </>
+            )}
             <button type="button" className={styles.textButton} onClick={() => inputRef.current?.click()}>
               Choose a file
             </button>

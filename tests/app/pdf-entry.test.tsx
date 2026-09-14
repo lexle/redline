@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 function choose(file: File) {
-  fireEvent.change(screen.getByLabelText("Choose a .txt or PDF file"), { target: { files: [file] } });
+  fireEvent.change(screen.getByLabelText("Choose a .txt, PDF or Word file"), { target: { files: [file] } });
 }
 
 describe("the entry screen's file picker with a PDF", () => {
