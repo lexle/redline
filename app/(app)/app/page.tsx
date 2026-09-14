@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import type { AnalyseFailureCode, AnalyseResponseBody } from "../../../lib/analysis/api";
 import { buildAnalyseRequestBody, isBlankDocument } from "../../../lib/analysis/request";
+import { ExtractionError, extractText } from "../../../lib/extraction/extract-text";
+import type { Extraction, ExtractionErrorCode } from "../../../lib/extraction/extract-text";
 import type { HarmCheck } from "../../../lib/analysis/checks";
 import type {
   AnalysisResult,
@@ -30,17 +32,19 @@ import {
   worthALookMarkId,
 } from "./DocumentView";
 
-type FailureReason = AnalyseFailureCode | "not-txt" | "empty-file" | "unreadable-file" | "offline";
+type FailureReason = AnalyseFailureCode | ExtractionErrorCode | "empty-file" | "offline";
 
 type Screen =
   | { state: "idle" }
   | { state: "extracting"; fileName: string }
   | { state: "analysing"; fileName: string }
+  | { state: "scan"; fileName: string }
   | { state: "result"; fileName: string; text: string; result: AnalysisResult }
   | { state: "failed"; fileName: string | null; reason: FailureReason };
 
 const FAILURE_COPY: Record<FailureReason, string> = {
-  "not-txt": "This version only reads .txt files.",
+  "unsupported-type": "Redline reads .txt and PDF files. Choose one of those, or paste the text.",
+  "invalid-pdf": "This PDF won't open. It may be damaged or password protected.",
   "empty-file": "That file has no text in it.",
   "unreadable-file": "Your browser couldn't read that file. Try choosing it again.",
   offline: "Couldn't reach Redline. Check your connection and try again.",
@@ -110,6 +114,12 @@ function joinList(items: readonly string[], conjunction = "and"): string {
   return `${items.slice(0, -1).join(", ")} ${conjunction} ${items[items.length - 1]}`;
 }
 
+const EXTRACTION_FAILURES: readonly FailureReason[] = ["unsupported-type", "invalid-pdf", "unreadable-file", "empty-file"];
+
+function isExtractionFailure(reason: FailureReason): boolean {
+  return EXTRACTION_FAILURES.includes(reason);
+}
+
 /** How the result screen names a Document the Signer pasted rather than read from a file. */
 export const PASTED_DOCUMENT_NAME = "your pasted document";
 
@@ -126,19 +136,21 @@ export default function AnalysePage() {
     if (!file) return;
 
     const fileName = file.name;
-    if (!/\.txt$/i.test(fileName) && file.type !== "text/plain") {
-      setScreen({ state: "failed", fileName, reason: "not-txt" });
-      return;
-    }
-
     setScreen({ state: "extracting", fileName });
-    let text: string;
+    // Only the extracted text leaves the browser. The file itself is never sent.
+    let extraction: Extraction;
     try {
-      text = await file.text();
-    } catch {
-      setScreen({ state: "failed", fileName, reason: "unreadable-file" });
+      extraction = await extractText(file);
+    } catch (error) {
+      const reason = error instanceof ExtractionError ? error.code : "unreadable-file";
+      setScreen({ state: "failed", fileName, reason });
       return;
     }
+    if (extraction.kind === "no-text") {
+      setScreen({ state: "scan", fileName });
+      return;
+    }
+    const text = extraction.text;
     if (isBlankDocument(text)) {
       setScreen({ state: "failed", fileName, reason: "empty-file" });
       return;
@@ -195,19 +207,19 @@ export default function AnalysePage() {
           Check a document
         </h1>
         <p className={styles.lede}>
-          Pick a .txt file or paste the text. Your browser sends Redline only the text.
+          Pick a .txt or PDF file, or paste the text. Your browser sends Redline only the text.
         </p>
         <input
           ref={inputRef}
           id="document-file"
           className={styles.fileInput}
           type="file"
-          accept=".txt,text/plain"
+          accept=".txt,text/plain,.pdf,application/pdf"
           onChange={handleFile}
           disabled={busy}
         />
         <label htmlFor="document-file" className={styles.fileButton} data-disabled={busy || undefined}>
-          {screen.state === "idle" ? "Choose a .txt file" : "Choose another file"}
+          {screen.state === "idle" ? "Choose a .txt or PDF file" : "Choose another file"}
         </label>
 
         <form className={styles.paste} onSubmit={handlePaste} noValidate>
@@ -254,9 +266,24 @@ export default function AnalysePage() {
           </p>
         )}
 
+        {screen.state === "scan" && (
+          <div className={styles.failure} role="alert">
+            <h2 className={styles.failureHeading}>This looks like a scan</h2>
+            <p className={styles.failureText}>
+              Redline can&apos;t read {screen.fileName}. At least one page is an image with no text in it, so
+              nothing was checked. Choose a copy with text you can select, or paste the text.
+            </p>
+            <button type="button" className={styles.textButton} onClick={() => inputRef.current?.click()}>
+              Choose a file
+            </button>
+          </div>
+        )}
+
         {screen.state === "failed" && (
           <div className={styles.failure} role="alert">
-            <h2 className={styles.failureHeading}>The analysis failed</h2>
+            <h2 className={styles.failureHeading}>
+              {isExtractionFailure(screen.reason) ? "Couldn't read this file" : "The analysis failed"}
+            </h2>
             <p className={styles.failureText}>{FAILURE_COPY[screen.reason]}</p>
             <button type="button" className={styles.textButton} onClick={() => inputRef.current?.click()}>
               Choose a file

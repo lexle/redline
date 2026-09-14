@@ -54,6 +54,16 @@ Unattended build run started 2026-09-14. This file is updated as work lands.
     bounded, cites the sentence it rests on through the same verbatim check as a Risk flag. Saying
     "payment terms present" is a claim about the text, and CLAUDE.md says state only what the
     Document says. Auto-renewal is folded into the lock-in check.
+16. **PDF whitespace is whatever pdfjs gives back, and that was accepted.** `pdfjs-dist` returns a run
+    of spaces inside a text item as one space and drops a space at the end of a line. Its public API
+    has no switch to keep them. Redline adds no normalisation of its own: no de-hyphenation, no
+    reflow, no trimming. The join rule is written in `lib/extraction/pdf.ts` and in the test.
+    ADR-0001 needs the stored text to be what extraction produced and citations to be measured
+    against that text, and both still hold, so every Source sentence stays exact. What is lost:
+    the stored text of a PDF can differ in spacing from what a PDF viewer copies out. If that
+    matters, the alternative is reaching into pdfjs internals, which would break on upgrades.
+17. **A PDF with any image-only page counts as a scan and is refused whole.** Analysing only the
+    pages that have text, without saying so, is the silent partial result the spec forbids.
 
 ## Not verified
 
