@@ -1,0 +1,113 @@
+{
+  "document": "adhesion-contract.txt",
+  "severityBands": {
+    "high": "Likely to cost the Signer money with no ceiling.",
+    "medium": "Inescapable (no exit, or irreversible) but less likely to bite than an uncapped money exposure."
+  },
+  "plantedClauses": [
+    {
+      "id": "RF-1",
+      "findingType": "risk-flag",
+      "clauseType": "liability-for-completion-consequential-costs",
+      "sentence": "If the Contractor stops performing the Services for any reason before the Project is complete, the Contractor shall be liable for all costs the Client incurs to complete the Project, including the fees of any replacement contractor and any consequential losses arising from the delay.",
+      "severityBand": "high",
+      "expectedRank": 1,
+      "why": "Uncapped: leaving for any reason makes the Signer pay all completion costs and consequential losses, the research's canonical case."
+    },
+    {
+      "id": "RF-2",
+      "findingType": "risk-flag",
+      "clauseType": "uncapped-indemnification",
+      "sentence": "The Contractor shall indemnify, defend and hold harmless the Client and its affiliates from and against any and all claims, losses, damages, fines and legal fees brought by any third party arising out of or relating to the Services, without limitation as to amount.",
+      "severityBand": "high",
+      "expectedRank": 2,
+      "why": "Uncapped: expressly without limitation as to amount, triggered by third parties the Signer does not control."
+    },
+    {
+      "id": "RF-3",
+      "findingType": "risk-flag",
+      "clauseType": "personal-guarantee",
+      "sentence": "Where the Contractor performs the Services through a company, the individual who signs this Agreement personally guarantees every obligation of that company under this Agreement.",
+      "severityBand": "high",
+      "expectedRank": 3,
+      "why": "Uncapped: pierces the Signer's company to reach personal assets for every obligation, including the uncapped ones."
+    },
+    {
+      "id": "RF-4",
+      "findingType": "risk-flag",
+      "clauseType": "non-compete-non-solicit",
+      "sentence": "For twenty-four months after this Agreement ends, the Contractor shall not provide services of any kind to any business that competes with the Client anywhere in the world, and shall not solicit or accept work from any customer of the Client.",
+      "severityBand": "medium",
+      "expectedRank": 4,
+      "why": "Inescapable: restricts the Signer's earning for two years worldwide after the relationship ends."
+    },
+    {
+      "id": "RF-5",
+      "findingType": "risk-flag",
+      "clauseType": "overbroad-ip-assignment",
+      "sentence": "The Contractor hereby irrevocably assigns to the Client all right, title and interest in every work, invention, design, method and idea the Contractor creates, conceives or develops during the term of this Agreement, whether or not created for the Client, and including all tools, templates and materials the Contractor owned before the Effective Date.",
+      "severityBand": "medium",
+      "expectedRank": 5,
+      "why": "Inescapable: irreversible assignment of work done for others and of pre-existing tools the Signer expected to keep."
+    },
+    {
+      "id": "RF-6",
+      "findingType": "risk-flag",
+      "clauseType": "auto-renewal-with-hard-cancellation",
+      "sentence": "This Agreement renews automatically for successive twelve-month terms unless the Contractor delivers written notice of non-renewal by registered mail to the Client's legal department no earlier than ninety days and no later than eighty-five days before the end of the then-current term.",
+      "severityBand": "medium",
+      "expectedRank": 6,
+      "why": "Inescapable in practice: a five-day registered-mail window is an exit on paper only, and the Contractor has no other termination right."
+    },
+    {
+      "id": "WAL-1",
+      "findingType": "worth-a-look",
+      "clauseType": "capped-warranty-liability",
+      "sentence": "The Contractor's total liability for any breach of the warranties in this Section shall not exceed two times the fees paid to the Contractor under the applicable Statement of Work.",
+      "severityBand": null,
+      "expectedRank": null,
+      "why": "Bounded: one-sided warranty exposure, but capped at 2x fees."
+    },
+    {
+      "id": "MN-1",
+      "findingType": "multiplier-note",
+      "clauseType": "arbitration-class-action-waiver",
+      "sentence": "Any dispute arising out of this Agreement shall be resolved exclusively by binding individual arbitration in Wilmington, Delaware, and the Contractor waives any right to bring or participate in a class, collective or representative action.",
+      "severityBand": null,
+      "expectedRank": null,
+      "why": "Multiplier: no harm alone, but forces every other dispute into individual arbitration with no class action."
+    },
+    {
+      "id": "MN-2",
+      "findingType": "multiplier-note",
+      "clauseType": "unilateral-amendment",
+      "sentence": "The Client may amend any term of this Agreement at any time by posting the amended terms to its supplier portal, and the Contractor's continued performance of the Services after such posting constitutes acceptance of the amended terms.",
+      "severityBand": null,
+      "expectedRank": null,
+      "why": "Multiplier: lets the Client worsen any other term at will, with continued work counted as acceptance."
+    }
+  ],
+  "expectedMissingProtections": [
+    {
+      "id": "payment-timing",
+      "why": "The Document defers compensation to a separate Statement of Work and never says when the Contractor is paid."
+    },
+    {
+      "id": "payment-amount",
+      "why": "No fee, rate or amount appears anywhere in the Document."
+    },
+    {
+      "id": "kill-fee",
+      "why": "The Client may terminate at any time on notice, and nothing says the Contractor is paid for work done up to termination."
+    },
+    {
+      "id": "late-payment-remedy",
+      "why": "No interest, late fee or right to suspend work if the Client pays late."
+    },
+    {
+      "id": "scope-revision-limits",
+      "why": "Project includes any additions the Client requests, and no limit on revisions or change-order pricing is stated."
+    }
+  ],
+  "repeatedSentence": "Nothing in this Section limits any other right or remedy available to the Client under this Agreement or at law."
+}

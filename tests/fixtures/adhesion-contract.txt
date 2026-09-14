@@ -1,0 +1,126 @@
+INDEPENDENT CONTRACTOR SERVICES AGREEMENT
+
+Brightwater Meridian Holdings LLC - Standard Supplier Terms (Form SC-7)
+
+This Independent Contractor Services Agreement (the "Agreement") is entered into as of the date of the Contractor's signature below (the "Effective Date") between Brightwater Meridian Holdings LLC, a Delaware limited liability company with offices at 400 Harbor Loop, Wilmington, Delaware (the "Client"), and the individual or entity identified in the signature block (the "Contractor"). The Client and the Contractor are each a "Party" and together the "Parties".
+
+These terms are the Client's standard terms for all independent suppliers. They are not open to negotiation, and any changes written onto this form by the Contractor have no effect.
+
+SECTION 1 - DEFINITIONS
+
+"Services" means the design, development, writing, consulting or other work described in one or more statements of work issued by the Client under this Agreement (each a "Statement of Work").
+
+"Deliverables" means all materials, files, drafts, code, reports and other output that the Contractor produces in performing the Services.
+
+"Project" means the body of work described in a Statement of Work, together with any additions the Client requests during performance.
+
+"Confidential Information" means any non-public information disclosed by or on behalf of the Client, in any form, including business plans, customer lists, pricing, product roadmaps and technical data.
+
+SECTION 2 - ENGAGEMENT AND SERVICES
+
+The Client engages the Contractor to perform the Services described in each Statement of Work. The Contractor shall perform the Services diligently, in a professional and workmanlike manner, and in accordance with the Client's policies as communicated to the Contractor from time to time.
+
+The Client may issue additional Statements of Work under this Agreement. Each Statement of Work forms part of this Agreement, and if a Statement of Work conflicts with these terms, these terms prevail unless the Statement of Work expressly states otherwise.
+
+The Contractor shall supply all equipment, software, licences and workspace needed to perform the Services at the Contractor's own expense. The Contractor shall make  itself available for meetings and calls at times reasonably requested by the Client.
+
+SECTION 3 - COMPENSATION
+
+The Client shall compensate the Contractor as described in the applicable Statement of Work. The Contractor is responsible for all expenses incurred in performing the Services unless the Client has approved an expense in writing before it is incurred.
+
+The Contractor shall submit invoices through the Client's supplier portal in the format the Client specifies. Invoices that do not comply with the Client's format requirements may be rejected.
+   
+SECTION 4 - TERM, RENEWAL AND TERMINATION
+
+This Agreement begins on the Effective Date and continues for an initial term of twelve months. This Agreement renews automatically for successive twelve-month terms unless the Contractor delivers written notice of non-renewal by registered mail to the Client's legal department no earlier than ninety days and no later than eighty-five days before the end of the then-current term. Notice delivered by email, through the supplier portal, or outside that window is not effective.
+
+The Client may terminate this Agreement or any Statement of Work at any time upon written notice to the Contractor. The Contractor may terminate this Agreement only at the end of a term in accordance with the renewal provisions above.
+
+If the Contractor stops performing the Services for any reason before the Project is complete, the Contractor shall be liable for all costs the Client incurs to complete the Project, including the fees of any replacement contractor and any consequential losses arising from the delay. Nothing in this Section limits any other right or remedy available to the Client under this Agreement or at law.
+
+On termination or expiry, the Contractor shall promptly return or destroy all Confidential Information and deliver to the Client all Deliverables, whether complete or in progress.
+
+SECTION 5 - INTELLECTUAL PROPERTY
+
+The Contractor hereby irrevocably assigns to the Client all right, title and interest in every work, invention, design, method and idea the Contractor creates, conceives or develops during the term of this Agreement, whether or not created for the Client, and including all tools, templates and materials the Contractor owned before the Effective Date. The Contractor waives all moral rights in the Deliverables to the extent permitted by law.
+
+The Contractor shall sign any documents and take any further steps the Client reasonably requests to perfect, register or enforce the Client's rights under this Section. The Contractor appoints the Client as its attorney-in-fact to sign such documents if the Contractor does not do so within five business days of a request.
+
+The Contractor shall not use any Deliverable, or any part of one, for any other client or for its own promotion without the Client's prior written consent.
+
+SECTION 6 - CONFIDENTIALITY
+
+The Contractor shall keep all Confidential Information strictly confidential and shall use it only to perform the Services. The Contractor shall not disclose Confidential Information to any person other than its own personnel who need to know it for the Services and who are bound by written obligations at least as protective as this Section.
+
+The obligations in this Section survive termination or expiry of this Agreement indefinitely. The Contractor shall notify the Client immediately on becoming aware of any unauthorised use or disclosure of Confidential Information.
+
+SECTION 7 - RESTRICTIVE COVENANTS
+
+The Contractor acknowledges that in performing the Services it will gain access to the Client's customers, methods and commercial strategy. For twenty-four months after this Agreement ends, the Contractor shall not provide services of any kind to any business that competes with the Client anywhere in the world, and shall not solicit or accept work from any customer of the Client.
+
+The Contractor agrees that the restrictions in this Section are reasonable and necessary to protect the Client's legitimate business interests. If a court finds any restriction unenforceable as written, the court may modify it to the minimum extent necessary to make it enforceable.
+
+SECTION 8 - INDEMNIFICATION
+
+The Contractor shall indemnify, defend and hold harmless the Client and its affiliates from and against any and all claims, losses, damages, fines and legal fees brought by any third party arising out of or relating to the Services, without limitation as to amount. The Client may select its own counsel for any such claim, and the Contractor shall reimburse the Client for that counsel's fees as they are incurred.
+
+The Contractor shall not settle any claim covered by this Section without the Client's prior written consent. Nothing in this Section limits any other right or remedy available to the Client under this Agreement or at law.
+
+SECTION 9 - WARRANTIES
+
+The Contractor warrants that the Deliverables will be original, will conform to the applicable Statement of Work, and will not infringe the rights of any third party. The Contractor further warrants that it will comply with all applicable laws in performing the Services.
+
+If a Deliverable does not conform to these warranties, the Contractor shall correct it at no additional charge within the time the Client reasonably specifies. The Contractor's total liability for any breach of the warranties in this Section shall not exceed two times the fees paid to the Contractor under the applicable Statement of Work.
+
+THE CLIENT MAKES NO WARRANTIES OF ANY KIND, AND THE CLIENT SHALL NOT BE LIABLE TO THE CONTRACTOR FOR ANY INDIRECT, INCIDENTAL OR CONSEQUENTIAL DAMAGES, OR FOR ANY LOST PROFITS, ARISING OUT OF THIS AGREEMENT.
+
+SECTION 10 - PERSONAL GUARANTEE
+
+The Client enters into this Agreement in reliance on the skills and standing of the individual who signs it. Where the Contractor performs the Services through a company, the individual who signs this Agreement personally guarantees every obligation of that company under this Agreement. This guarantee continues after termination or expiry and is not released by any extension of time or other indulgence the Client grants.
+
+SECTION 11 - INDEPENDENT CONTRACTOR STATUS
+
+The Contractor is an independent contractor and not an employee, partner or agent of the Client. The Contractor is solely responsible for all taxes, social security contributions, insurance and benefits relating to the Contractor and its personnel.
+
+The Contractor shall maintain, at its own cost, professional liability insurance and general liability insurance in amounts the Client considers adequate, and shall provide certificates of insurance on request.
+
+The Contractor shall not subcontract any part of the Services without the Client's prior written consent. The Contractor remains responsible for the acts and omissions of any permitted subcontractor as if they were its own.
+
+SECTION 12 - DISPUTE RESOLUTION
+
+The Parties shall first attempt to resolve any dispute through good-faith discussion between their representatives for a period of thirty days. Any dispute arising out of this Agreement shall be resolved exclusively by binding individual arbitration in Wilmington, Delaware, and the Contractor waives any right to bring or participate in a class, collective or representative action.
+
+The arbitrator's fees shall be shared equally between the Parties, and each Party shall bear its own legal costs. Notwithstanding the above, the Client may seek injunctive relief in any court of competent jurisdiction to protect its intellectual property or Confidential Information.
+
+SECTION 13 - CHANGES TO THESE TERMS
+
+The Client may amend any term of this Agreement at any time by posting the amended terms to its supplier portal, and the Contractor's continued performance of the Services after such posting constitutes acceptance of the amended terms. The Contractor is responsible for checking the supplier portal regularly for updated terms.
+
+SECTION 14 - GENERAL
+
+This Agreement is governed by the laws of the State of Delaware, without regard to its conflict of laws rules.
+
+This Agreement, together with each Statement of Work, is the entire agreement between the Parties about its subject matter and supersedes all prior discussions, proposals and understandings.
+
+The Contractor may not assign or transfer this Agreement or any right under it without the Client's prior written consent. The Client may assign this Agreement to any affiliate or to any successor to its business without notice to the Contractor.
+
+If any provision of this Agreement is held invalid or unenforceable, the remaining provisions continue in full force. A failure or delay by the Client in exercising any right does not waive that right.
+
+Notices to the Client must be sent by registered mail to its legal department at the address above. Notices to the Contractor may be sent by email to the address the Contractor has registered on the supplier portal.
+
+Sections 4, 5, 6, 7, 8, 10 and 12 survive termination or expiry of this Agreement.
+
+By signing below, the Contractor confirms that it has read and accepts these terms in full.
+
+BRIGHTWATER MERIDIAN HOLDINGS LLC
+
+Signature: ______________________
+Name: ______________________
+Title: Director of Vendor Operations
+
+CONTRACTOR
+
+Signature: ______________________
+Name: ______________________
+Company (if any): ______________________
+Date: ______________________

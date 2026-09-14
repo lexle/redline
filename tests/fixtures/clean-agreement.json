@@ -1,0 +1,45 @@
+{
+  "document": "clean-agreement.txt",
+  "plantedClauses": [],
+  "presentProtections": [
+    {
+      "id": "payment-timing",
+      "sentence": "The Client shall pay each invoice in full within fifteen days of the invoice date."
+    },
+    {
+      "id": "payment-amount",
+      "sentence": "The Client shall pay the Designer a fixed fee of USD 6,000 for the Project, invoiced as half on signature of this Agreement and half on delivery of the final Deliverables."
+    },
+    {
+      "id": "kill-fee",
+      "sentence": "If either party terminates this Agreement, the Client shall pay the Designer for all work performed up to the effective date of termination at the hourly rate of USD 90, and the first invoice paid on signature is non-refundable."
+    },
+    {
+      "id": "late-payment-remedy",
+      "sentence": "Invoices not paid when due accrue a late fee of one percent per month on the unpaid balance until paid."
+    },
+    {
+      "id": "scope-revision-limits",
+      "sentence": "The fee includes two rounds of revisions per Deliverable, and any further revisions will be billed at the hourly rate of USD 90."
+    }
+  ],
+  "expectedNiceToHave": [
+    {
+      "id": "portfolio-rights",
+      "why": "The Document does not say whether the Designer may show the finished work in a portfolio, and the IP transfer on payment could be read to prevent it."
+    }
+  ],
+  "checklist": [
+    "No uncapped liability: each side's liability is capped at the total fees",
+    "No uncapped indemnity: both indemnities sit under the same cap",
+    "No lock-in: either side can end the agreement with 14 days' notice",
+    "No non-compete: the Designer may work for other clients during and after the project",
+    "Copyright moves to the Client only once the work is paid for",
+    "Payment amount and timing are stated: USD 6,000, invoices due in 15 days",
+    "Late payment has a consequence: a late fee and the right to pause work",
+    "Work done before termination is paid for",
+    "Revisions are limited to two rounds per deliverable",
+    "Disputes go to Oregon courts, with no arbitration or class-action waiver",
+    "Changes to the agreement need both sides' signatures"
+  ]
+}
