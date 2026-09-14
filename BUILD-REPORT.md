@@ -4,7 +4,34 @@ Unattended build run started 2026-09-14. This file is updated as work lands.
 
 ## Tickets
 
-(filled in as tickets complete)
+All under `.scratch/cited-analysis/issues/` unless noted. "Done" means built by a subagent, then
+verified in the orchestrating session with typecheck, the full test suite, the build and a scan for
+stubs, TODOs and mocks before the commit.
+
+| Ticket | State | Notes |
+|---|---|---|
+| 01 Scaffold, test runner, CI | done | vitest, GitHub Actions; CI passed on GitHub |
+| 02 Real test corpora | **not done** | `ready-for-human` on purpose (decision 2) |
+| 03 Tracer: cited Risk flags | done | |
+| 04 Provenance tiers | done | |
+| 05 Locate the Source sentence | done | jsdom-tested; not checked in a real browser |
+| 06 PDF extraction | done | pdfjs whitespace caveat (decision 16) |
+| 07 DOCX extraction | done | body only; tracked changes read as accepted |
+| 08 Counter-offers | done | |
+| 09 Worth a look | done | |
+| 10 Multiplier notes | done | |
+| 11 Missing protections | done | |
+| 12 Grounded summary | done | |
+| 13 Clean documents and checklist | done | |
+| 14 Export a marked-up copy | done | |
+| 15 Long Documents | done | |
+| 16 Launch gates on the real model | **blocked** | needs 02's corpora; also no model access (429) |
+| 17 Paste a Document | done | |
+| 18 Question box | done | |
+| 19 Sign-in and red lines | done | Supabase parts unverified (see below) |
+| 20 Saved library | done | Supabase parts unverified (see below) |
+| launch-gates 01 Test Rocket Copilot | **not done** | `ready-for-human` |
+| launch-gates 02 Expert review | **not done** | `ready-for-human`, blocked by 16 |
 
 ## Decisions made without the owner
 
@@ -87,9 +114,45 @@ Unattended build run started 2026-09-14. This file is updated as work lands.
   lines. How red lines drive the analysis is tested at the `analyse` seam. No test mocks supabase-js,
   because that would test the mock. When you create the project, add `<site>/sign-in` to its
   allowed redirect URLs.
+- **Everything that needs a Supabase project (ticket 20).** None of the following has run: the
+  `documents` migration, whether RLS really limits a Signer to their own saved Documents, the
+  signed-in save/list/open/delete paths, the not-found case for someone else's id, and whether
+  `jsonb` returns a stored result in a form that still passes reopening. What is tested: the stored
+  payload holds the text byte for byte and no file data, reopening re-checks every span against
+  the stored text and fails on a changed character or a tampered quote, and with Supabase unset
+  `/library` says accounts are not set up and makes no request.
+- **Real-model smoke, final attempt (end of run): still 429.** Every attempt this session got the
+  same upstream rate limit, about 20 in all between tickets 03 and 20, and none reached the model.
+  So no flags came back from the real model and **zero flags were verified against it**. Whether
+  the real model produces citations that survive the verbatim check, and how often it trips the
+  malformed-response checks, are both unknown. Only the stubbed pipeline is proven. The smoke
+  script itself runs up to the API call and reports a 429 as a clear error.
+- **Nothing was checked in a real browser.** Screens are covered by jsdom render tests and
+  `next build`. Tab placement, tape, scrolling, the PDF worker, clipboard and download have not been
+  looked at.
 - **CI on GitHub works.** The first push, `f9a0830` (tickets 01 to 15 and 17), ran the CI workflow
   (typecheck, tests, build) and it passed.
 
 ## First commands
 
-(filled in at the end)
+Run these in order from the repo root.
+
+```sh
+git pull
+npm ci
+npm run typecheck && npm test && npm run build   # all three should pass
+npm run smoke                                    # real model; see the 429 note above
+npm run dev                                      # then open http://localhost:3000/app and paste a Document
+```
+
+If `npm run smoke` still returns 429, choose one of two fixes. Either add your own Fireworks key
+under https://openrouter.ai/settings/integrations, or change the provider pin in
+`lib/model/openrouter-client.ts`. Then run smoke again.
+
+When the Supabase project exists:
+
+1. Put `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local`.
+2. Run the files in `supabase/migrations/` in filename order in the SQL editor.
+3. Add `http://localhost:3000/sign-in` and the deployed `/sign-in` URL to the allowed redirect URLs.
+4. Sign in at `/sign-in`, add a red line, analyse a Document, and check it appears in `/library`.
+5. With a second account, confirm you cannot see the first account's red lines or Documents.

@@ -8,8 +8,13 @@ import { useAccount } from "./useAccount";
 
 const LINKS = [
   { href: "/app", label: "Check a document" },
+  { href: "/library", label: "Library" },
   { href: "/red-lines", label: "Red lines" },
 ] as const;
+
+function isCurrent(pathname: string | null, href: string): boolean {
+  return pathname === href || (href === "/library" && pathname?.startsWith("/library/") === true);
+}
 
 /** The shell's navigation and sign-in state. */
 export function AccountNav() {
@@ -35,7 +40,7 @@ export function AccountNav() {
             <Link
               href={link.href}
               className={styles.navLink}
-              aria-current={pathname === link.href ? "page" : undefined}
+              aria-current={isCurrent(pathname, link.href) ? "page" : undefined}
             >
               {link.label}
             </Link>

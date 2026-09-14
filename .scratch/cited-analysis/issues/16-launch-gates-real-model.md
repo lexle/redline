@@ -8,7 +8,8 @@ the analysis. This ticket proves the analysis.
 
 **Blocked by:** 02, 06, 07, 15
 
-**Status:** ready-for-agent
+**Status:** blocked (2026-09-14). 06, 07 and 15 are done. 02, the real corpora, is `ready-for-human`,
+and every real-model call this session returned 429 from the pinned provider. See BUILD-REPORT.md.
 
 - [ ] Recording mode: run the corpora through the production model client (OpenRouter,
       `OPENROUTER_MODEL`) and save each response, together with the model it came from. Changing
