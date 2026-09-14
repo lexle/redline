@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { AnalyseFailureCode, AnalyseRequestBody, AnalyseResponseBody } from "../../../lib/analysis/api";
-import type { AnalysisResult, SeverityBand } from "../../../lib/analysis/types";
+import type { AnalysisResult, Claim, SeverityBand, WorthALook } from "../../../lib/analysis/types";
 import styles from "../app.module.css";
 
 type FailureReason = AnalyseFailureCode | "not-txt" | "empty-file" | "unreadable-file" | "offline";
@@ -136,7 +136,12 @@ export default function AnalysePage() {
           </div>
         )}
 
-        {screen.state === "result" && <RiskFlagList fileName={screen.fileName} result={screen.result} />}
+        {screen.state === "result" && (
+          <>
+            <RiskFlagList fileName={screen.fileName} result={screen.result} />
+            <WorthALookSection entries={screen.result.worthALook} />
+          </>
+        )}
       </section>
     </div>
   );
@@ -165,19 +170,7 @@ function RiskFlagList({ fileName, result }: { fileName: string; result: Analysis
               <div className={styles.flagBody}>
                 <h3 className={styles.flagTitle}>{flag.title}</h3>
                 <p className={styles.severity}>{SEVERITY_COPY[flag.severityBand]}</p>
-                <ul className={styles.claims}>
-                  {flag.claims.map((claim, index) =>
-                    claim.tier === "inference" ? (
-                      <li key={index} className={styles.claim} data-tier="inference">
-                        <span className={styles.inferenceLabel}>Inference</span> {claim.text}
-                      </li>
-                    ) : (
-                      <li key={index} className={styles.claim} data-tier="read-off">
-                        {claim.text}
-                      </li>
-                    ),
-                  )}
-                </ul>
+                <ClaimList claims={flag.claims} />
                 <blockquote className={styles.quote}>
                   <p>“{flag.source.text}”</p>
                 </blockquote>
@@ -189,6 +182,59 @@ function RiskFlagList({ fileName, result }: { fileName: string; result: Analysis
         </ol>
       )}
     </div>
+  );
+}
+
+/** Read-off claims stand flat; inference claims carry a label in words, not a hedge. */
+function ClaimList({ claims }: { claims: readonly Claim[] }) {
+  return (
+    <ul className={styles.claims}>
+      {claims.map((claim, index) =>
+        claim.tier === "inference" ? (
+          <li key={index} className={styles.claim} data-tier="inference">
+            <span className={styles.inferenceLabel}>Inference</span> {claim.text}
+          </li>
+        ) : (
+          <li key={index} className={styles.claim} data-tier="read-off">
+            {claim.text}
+          </li>
+        ),
+      )}
+    </ul>
+  );
+}
+
+/**
+ * Bounded clauses, listed after the Risk flags and collapsed by default (ADR-0006). Quieter than a
+ * Risk flag: no rank, no magenta tip, no Counter-offer. The Source sentence is still shown verbatim.
+ */
+function WorthALookSection({ entries }: { entries: readonly WorthALook[] }) {
+  if (entries.length === 0) {
+    return <p className={`${styles.quiet} ${styles.worthALookEmpty}`}>Nothing for Worth a look in this document.</p>;
+  }
+  return (
+    <details className={styles.worthALook}>
+      <summary className={styles.worthALookSummary}>
+        <span className={styles.worthALookHeading}>Worth a look</span>
+        <span className={styles.worthALookCount}>{entries.length}</span>
+      </summary>
+      <p className={styles.meta}>
+        These clauses are one-sided or unusual, but each has a limit and a way out, so they aren&rsquo;t ranked
+        with the risk flags.
+      </p>
+      <ul className={styles.worthALookList}>
+        {entries.map((entry) => (
+          <li key={entry.source.start} className={styles.worthALookEntry}>
+            <h3 className={styles.flagTitle}>{entry.title}</h3>
+            <ClaimList claims={entry.claims} />
+            <blockquote className={styles.quote}>
+              <p>“{entry.source.text}”</p>
+            </blockquote>
+            <p className={styles.meta}>Quoted word for word from your document</p>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 

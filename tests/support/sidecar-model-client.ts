@@ -50,17 +50,30 @@ export interface ModelRiskFlag {
   counterOffer?: string;
 }
 
+export interface ModelWorthALook {
+  unitId: string;
+  quote: string;
+  title: string;
+  claims: ModelClaim[];
+}
+
 export interface ModelPayload {
   riskFlags: ModelRiskFlag[];
+  worthALook: ModelWorthALook[];
 }
 
 export interface SidecarClientOptions {
-  /** Claims appended to a planted clause's flag, keyed by the clause id in the sidecar (e.g. "RF-4"). */
+  /**
+   * Claims appended to a planted clause's finding, keyed by the clause id in the sidecar (e.g. "RF-4"
+   * or "WAL-1").
+   */
   extraClaims?: Record<string, ModelClaim[]>;
   /** Planted clause ids whose flag is sent with no counterOffer field at all. */
   omitCounterOffer?: string[];
   /** Counter-offer text to send instead of the derived one, keyed by clause id (e.g. "" or "   "). */
   counterOffers?: Record<string, string>;
+  /** Quote to send instead of the unit's exact text for a planted Worth a look, keyed by clause id. */
+  worthALookQuotes?: Record<string, string>;
   /** Corrupt or reshape the payload before it is returned. */
   tamper?: (payload: ModelPayload) => ModelPayload;
 }
@@ -82,7 +95,7 @@ export function counterOfferFor(clause: PlantedClause): string {
 
 /**
  * A synthetic ModelClient that answers the way a correct model would for a fixture: one Risk flag
- * per planted risk-flag sentence, citing the unit id the product's own segmenter gives it, with a
+ * per planted risk-flag sentence and one Worth a look entry per planted worth-a-look sentence, citing the unit id the product's own segmenter gives it, with a
  * read-off claim and an inference claim built from the sidecar, then any test-supplied extras.
  * Flags are emitted in reverse rank order so ranking is exercised. Every request received is kept
  * in `requests`.
@@ -96,21 +109,37 @@ export class SidecarModelClient implements ModelClient {
       extraClaims = {},
       omitCounterOffer = [],
       counterOffers = {},
+      worthALookQuotes = {},
       tamper,
     } = typeof options === "function" ? { tamper: options } : options;
     const units = segmentSentences(fixture.text);
     const planted = fixture.sidecar.plantedClauses.filter((clause) => clause.findingType === "risk-flag");
-    for (const id of [...Object.keys(extraClaims), ...omitCounterOffer, ...Object.keys(counterOffers)]) {
+    const plantedWorthALook = fixture.sidecar.plantedClauses.filter((clause) => clause.findingType === "worth-a-look");
+    for (const id of [...omitCounterOffer, ...Object.keys(counterOffers)]) {
       if (!planted.some((clause) => clause.id === id)) {
         throw new Error(`Options name ${id}, which is not a planted risk flag in ${fixture.sidecar.document}.`);
       }
     }
+    for (const id of Object.keys(worthALookQuotes)) {
+      if (!plantedWorthALook.some((clause) => clause.id === id)) {
+        throw new Error(`Options name ${id}, which is not a planted worth-a-look clause in ${fixture.sidecar.document}.`);
+      }
+    }
+    for (const id of Object.keys(extraClaims)) {
+      if (![...planted, ...plantedWorthALook].some((clause) => clause.id === id)) {
+        throw new Error(`Options name ${id}, which is not a planted cited clause in ${fixture.sidecar.document}.`);
+      }
+    }
+    const unitFor = (clause: PlantedClause) => {
+      const unit = units.find((candidate) => candidate.text === clause.sentence);
+      if (!unit) {
+        throw new Error(`Planted sentence ${clause.id} is not a single unit of ${fixture.sidecar.document}.`);
+      }
+      return unit;
+    };
     const riskFlags = planted
       .map((clause): ModelRiskFlag => {
-        const unit = units.find((candidate) => candidate.text === clause.sentence);
-        if (!unit) {
-          throw new Error(`Planted sentence ${clause.id} is not a single unit of ${fixture.sidecar.document}.`);
-        }
+        const unit = unitFor(clause);
         if (clause.severityBand === null || clause.expectedRank === null) {
           throw new Error(`Planted risk flag ${clause.id} has no severity band or rank.`);
         }
@@ -127,7 +156,19 @@ export class SidecarModelClient implements ModelClient {
         return flag;
       })
       .reverse();
-    const payload = { riskFlags };
+    // Worth a look entries are sent in reverse document order, so the Document-order sort is exercised.
+    const worthALook = plantedWorthALook
+      .map((clause): ModelWorthALook => {
+        const unit = unitFor(clause);
+        return {
+          unitId: unit.id,
+          quote: worthALookQuotes[clause.id] ?? unit.text,
+          title: clause.id,
+          claims: [readOffClaimFor(clause), inferenceClaimFor(clause), ...(extraClaims[clause.id] ?? [])],
+        };
+      })
+      .reverse();
+    const payload: ModelPayload = { riskFlags, worthALook };
     this.payload = tamper ? tamper(structuredClone(payload)) : payload;
   }
 

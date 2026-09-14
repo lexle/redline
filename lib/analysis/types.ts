@@ -1,6 +1,6 @@
 /**
  * What `analyse` returns. Cited finding types carry a required `source`; there is no way to build
- * a Risk flag without one. Later finding types (Worth a look, Multiplier note, Missing protection,
+ * a Risk flag or a Worth a look without one. Later finding types (Multiplier note, Missing protection,
  * Nice to have) are added as their own types beside `RiskFlag`, never as optional fields on it.
  */
 
@@ -52,10 +52,26 @@ export interface RiskFlag {
   readonly counterOffer: string;
 }
 
+/**
+ * A clause that is one-sided or unusual but bounded: the Signer's exposure has a ceiling and an
+ * exit exists (ADR-0004, ADR-0006). It is present in the text, so it cites its Source sentence, but
+ * it never enters the Risk flag ranking: it has no rank, no severity band and no Counter-offer.
+ */
+export interface WorthALook {
+  readonly kind: "worth-a-look";
+  /** What the clause does and that it is bounded, stated flat, e.g. "Liability is capped at 2x fees". */
+  readonly title: string;
+  /** What the entry says about its Source sentence, in the model's order. Never empty. */
+  readonly claims: readonly [Claim, ...Claim[]];
+  readonly source: SourceSentence;
+}
+
 export interface RedLine {
   readonly text: string;
 }
 
 export interface AnalysisResult {
   readonly riskFlags: readonly RiskFlag[];
+  /** In the order the sentences appear in the Document. Not ranked. */
+  readonly worthALook: readonly WorthALook[];
 }

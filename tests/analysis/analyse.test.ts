@@ -15,6 +15,9 @@ const clean = loadFixture("clean-agreement");
 const plantedRiskFlags = adhesion.sidecar.plantedClauses
   .filter((clause) => clause.findingType === "risk-flag")
   .sort((a, b) => a.expectedRank! - b.expectedRank!);
+const plantedWorthALook = adhesion.sidecar.plantedClauses.filter((clause) => clause.findingType === "worth-a-look");
+/** Every finding the stub sends that cites a Source sentence: Risk flags and Worth a look. */
+const citedFindingCount = plantedRiskFlags.length + plantedWorthALook.length;
 
 describe("analyse: Risk flags cite their Source sentence", () => {
   it("returns only Risk flags whose Source sentence is the exact stored text at its offsets", async () => {
@@ -36,6 +39,7 @@ describe("analyse: Risk flags cite their Source sentence", () => {
 
   it("ranks by severity band before the model's rank, so a no-ceiling cost comes first", async () => {
     const client = new SidecarModelClient(adhesion, (payload) => ({
+      ...payload,
       riskFlags: payload.riskFlags.map((flag) => ({ ...flag, rank: flag.severityBand === "medium" ? 1 : 9 })),
     }));
     const result = await analyse(adhesion.text, [], client);
@@ -76,7 +80,7 @@ describe("analyse: a citation that does not match fails the whole analysis", () 
     expect(failure).toBeInstanceOf(CitationError);
     const citationError = failure as CitationError;
     expect(citationError.failures).toEqual([expect.objectContaining({ unitId: "u99999", reason: "unknown-unit" })]);
-    expect(citationError.passedCount).toBe(plantedRiskFlags.length - 1);
+    expect(citationError.passedCount).toBe(citedFindingCount - 1);
   });
 
   it("throws when the echoed quote differs from the stored sentence by a single space", async () => {
@@ -94,6 +98,7 @@ describe("analyse: a citation that does not match fails the whole analysis", () 
     expect(doubleSpaced, "the fixture should contain irregular whitespace").toBeDefined();
 
     const client = new SidecarModelClient(adhesion, (payload) => ({
+      ...payload,
       riskFlags: [
         ...payload.riskFlags,
         {
@@ -121,7 +126,7 @@ describe("analyse: a citation that does not match fails the whole analysis", () 
     const failure = (await analyse(adhesion.text, [], client).catch((error: unknown) => error)) as CitationError;
     expect(failure).toBeInstanceOf(CitationError);
     expect(failure.failures.map((item) => item.reason).sort()).toEqual(["quote-mismatch", "unknown-unit"]);
-    expect(failure.passedCount).toBe(plantedRiskFlags.length - 2);
+    expect(failure.passedCount).toBe(citedFindingCount - 2);
     expect(failure.message).toContain("nope");
   });
 });
@@ -287,6 +292,7 @@ describe("analyse: every Risk flag carries its Counter-offer", () => {
 
   it("keeps each Counter-offer on its own flag after ranking reorders the flags", async () => {
     const client = new SidecarModelClient(adhesion, (payload) => ({
+      ...payload,
       riskFlags: payload.riskFlags.map((flag) => ({ ...flag, rank: flag.severityBand === "medium" ? 1 : 9 })),
     }));
     const result = await analyse(adhesion.text, [], client);
@@ -295,5 +301,134 @@ describe("analyse: every Risk flag carries its Counter-offer", () => {
       const clause = plantedRiskFlags.find((candidate) => candidate.sentence === flag.source.text)!;
       expect(flag.counterOffer).toBe(counterOfferFor(clause));
     }
+  });
+});
+
+describe("analyse: bounded clauses go to Worth a look, outside the Risk flag ranking", () => {
+  const cappedLiability = adhesion.sidecar.plantedClauses.find((clause) => clause.id === "WAL-1")!;
+  const cappedUnit = segmentSentences(adhesion.text).find((unit) => unit.text === cappedLiability.sentence)!;
+
+  it("returns the clause with a stated liability cap as Worth a look, and not among the Risk flags", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
+
+    expect(result.worthALook.map((entry) => entry.source.text)).toEqual([cappedLiability.sentence]);
+    expect(result.worthALook[0].kind).toBe("worth-a-look");
+    expect(result.riskFlags.map((flag) => flag.source.text)).not.toContain(cappedLiability.sentence);
+    expect(result.riskFlags.map((flag) => flag.rank)).toEqual(plantedRiskFlags.map((clause) => clause.expectedRank));
+  });
+
+  it("carries no rank, severity band or Counter-offer on a Worth a look entry", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
+
+    expect(Object.keys(result.worthALook[0]).sort()).toEqual(["claims", "kind", "source", "title"]);
+  });
+
+  it("gives Worth a look a Source sentence that is the exact stored text at its offsets", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
+    const [entry] = result.worthALook;
+
+    expect(entry.source).toEqual({ start: cappedUnit.start, end: cappedUnit.end, text: cappedLiability.sentence });
+    expect(adhesion.text.slice(entry.source.start, entry.source.end)).toBe(entry.source.text);
+  });
+
+  it("returns tiered claims on Worth a look and withholds the ones that need facts about the Signer", async () => {
+    const leverageClaim = {
+      tier: "needs-signer-facts" as const,
+      text: "Two times your fees is a cap your client would accept raising.",
+    };
+    const client = new SidecarModelClient(adhesion, { extraClaims: { "WAL-1": [leverageClaim] } });
+    const result = await analyse(adhesion.text, [], client);
+
+    expect(result.worthALook[0].claims).toEqual([readOffClaimFor(cappedLiability), inferenceClaimFor(cappedLiability)]);
+    expect(JSON.stringify(result)).not.toContain(leverageClaim.text);
+  });
+
+  it("fails the analysis when every claim on a Worth a look entry is withheld", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      payload.worthALook[0].claims = [{ tier: "needs-signer-facts", text: "A court where you live would cut this cap." }];
+      return payload;
+    });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain(`unit ${cappedUnit.id}`);
+  });
+
+  it("throws CitationError when a Worth a look quote differs from the stored sentence", async () => {
+    const tampered = cappedLiability.sentence.replace("two times", "three times");
+    const client = new SidecarModelClient(adhesion, { worthALookQuotes: { "WAL-1": tampered } });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(CitationError);
+    const citationError = failure as CitationError;
+    expect(citationError.failures).toEqual([
+      { index: 0, findingType: "worth-a-look", unitId: cappedUnit.id, quote: tampered, reason: "quote-mismatch" },
+    ]);
+    expect(citationError.passedCount).toBe(citedFindingCount - 1);
+  });
+
+  it("throws CitationError when a Worth a look cites a unit id that does not exist", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      payload.worthALook[0].unitId = "u99999";
+      return payload;
+    });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(CitationError);
+    expect((failure as CitationError).failures).toEqual([
+      expect.objectContaining({ findingType: "worth-a-look", unitId: "u99999", reason: "unknown-unit" }),
+    ]);
+  });
+
+  it("fails the analysis as malformed when the same sentence is cited as a Risk flag and as Worth a look", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => ({
+      ...payload,
+      riskFlags: [
+        ...payload.riskFlags,
+        {
+          unitId: cappedUnit.id,
+          quote: cappedUnit.text,
+          title: "Capped warranty liability",
+          claims: [{ tier: "read-off", text: "Warranty liability is capped at two times the fees." }],
+          severityBand: "medium",
+          rank: 7,
+          counterOffer: "The Contractor's total liability shall not exceed the fees paid.",
+        },
+      ],
+    }));
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain(`unit ${cappedUnit.id}`);
+  });
+
+  it("fails the analysis when the model's answer has no Worth a look list", async () => {
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      delete (payload as Partial<typeof payload>).worthALook;
+      return payload;
+    });
+
+    await expect(analyse(adhesion.text, [], client)).rejects.toBeInstanceOf(AnalysisResponseError);
+  });
+
+  it("asks the model for Worth a look as its own required list, with no rank or Counter-offer", async () => {
+    const client = new SidecarModelClient(adhesion);
+    await analyse(adhesion.text, [], client);
+
+    const schema = client.requests[0].schema as {
+      required: string[];
+      properties: { worthALook: { items: { required: string[]; properties: Record<string, unknown> } } };
+    };
+    expect(schema.required).toEqual(expect.arrayContaining(["riskFlags", "worthALook"]));
+    const item = schema.properties.worthALook.items;
+    expect(item.required).toEqual(expect.arrayContaining(["unitId", "quote", "claims"]));
+    expect(Object.keys(item.properties)).not.toContain("rank");
+    expect(Object.keys(item.properties)).not.toContain("counterOffer");
+    expect(Object.keys(item.properties)).not.toContain("severityBand");
+  });
+
+  it("returns no Worth a look for the clean agreement when the model finds none", async () => {
+    const result = await analyse(clean.text, [], new SidecarModelClient(clean));
+    expect(result.worthALook).toEqual([]);
   });
 });

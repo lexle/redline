@@ -345,6 +345,64 @@
   overflow-wrap: anywhere;
 }
 
+/* Worth a look: bounded clauses, quieter than Risk flags. No rank, no magenta, collapsed by default. */
+.worthALook {
+  margin-top: 28px;
+  border-top: 1px solid rgb(255 255 255 / 0.12);
+}
+
+.worthALookEmpty {
+  margin-top: 28px;
+  font-size: 0.9375rem;
+}
+
+.worthALookSummary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding-block: 8px;
+  color: var(--desk-ink-2);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.35;
+  cursor: pointer;
+  transition: color 180ms var(--ease);
+}
+
+.worthALookSummary:hover,
+.worthALook[open] > .worthALookSummary {
+  color: var(--desk-ink);
+}
+
+.worthALookSummary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.worthALookCount {
+  min-width: 24px;
+  padding: 1px 6px;
+  border: 1px solid rgb(255 255 255 / 0.28);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.worthALookList {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.worthALookEntry {
+  min-width: 0;
+  padding: 10px 14px 12px;
+  border-left: 3px solid rgb(255 255 255 / 0.2);
+  background: rgb(255 255 255 / 0.03);
+}
+
 @media (max-width: 760px) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
@@ -359,6 +417,7 @@
 @media (prefers-reduced-motion: reduce) {
   .fileButton,
   .copyButton,
+  .worthALookSummary,
   .flag {
     transition: none;
   }

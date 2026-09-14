@@ -35,6 +35,14 @@ try {
     console.log(`   Source [${flag.source.start}, ${flag.source.end}): "${flag.source.text}"`);
     console.log(`   Counter-offer: ${flag.counterOffer}\n`);
   }
+  console.log(`${result.worthALook.length} Worth a look, not ranked, every one cited verbatim\n`);
+  for (const entry of result.worthALook) {
+    console.log(`- ${entry.title}`);
+    for (const claim of entry.claims) {
+      console.log(`   (${claim.tier}) ${claim.text}`);
+    }
+    console.log(`   Source [${entry.source.start}, ${entry.source.end}): "${entry.source.text}"\n`);
+  }
   process.exit(0);
 } catch (error) {
   if (error instanceof CitationError) {
