@@ -54,12 +54,22 @@ export interface RiskFlag {
    * of a cited Risk flag, and a flag is never returned without one.
    */
   readonly counterOffer: string;
+  /**
+   * The Signer's red lines this flag's Source sentence crosses, in the order the Signer listed them.
+   * Empty when it crosses none. A red line appears here only on a flag whose Source sentence was
+   * validated, so a red line can never create a finding on its own.
+   */
+  readonly redLines: readonly CrossedRedLine[];
 }
 
 /**
  * A clause that is one-sided or unusual but bounded: the Signer's exposure has a ceiling and an
  * exit exists (ADR-0004, ADR-0006). It is present in the text, so it cites its Source sentence, but
  * it never enters the Risk flag ranking: it has no rank, no severity band and no Counter-offer.
+ *
+ * It never crosses a red line. A bounded clause that crosses one of the Signer's red lines is a Risk
+ * flag, so it carries a severity band and a Counter-offer; the model is required to send it as one,
+ * and a Worth a look entry naming a red line fails the analysis as malformed.
  */
 export interface WorthALook {
   readonly kind: "worth-a-look";
@@ -82,6 +92,11 @@ export interface MultiplierNote {
   /** What the note says about its Source sentence, in the model's order. Never empty. */
   readonly claims: readonly [Claim, ...Claim[]];
   readonly source: SourceSentence;
+  /**
+   * The Signer's red lines this note's Source sentence crosses (a red line against arbitration, say).
+   * It stays a Multiplier note and out of the ranking (ADR-0003), but says which red line it crosses.
+   */
+  readonly redLines: readonly CrossedRedLine[];
 }
 
 /**
@@ -250,7 +265,14 @@ export type ChecklistItem = NotFoundCheck | BoundedCheck | FlaggedCheck | Presen
 
 export type { CheckId };
 
+/** A boundary the Signer states in advance, in their own words. Redline's input, never its output. */
 export interface RedLine {
+  readonly text: string;
+}
+
+/** A red line a finding crosses: the id the analysis gave it (`RL-1`, in the Signer's order) and the Signer's words. */
+export interface CrossedRedLine {
+  readonly id: string;
   readonly text: string;
 }
 

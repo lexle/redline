@@ -67,6 +67,18 @@ const CLAIMS_SCHEMA: JsonSchema = {
   },
 };
 
+/** The id the prompt gives the Signer's red line at `index` (zero-based): `RL-1`, `RL-2`, ... in their order. */
+export function redLineId(index: number): string {
+  return `RL-${index + 1}`;
+}
+
+const RED_LINES_SCHEMA: JsonSchema = {
+  type: "array",
+  description:
+    'The ids of the Signer\'s red lines the cited sentence crosses, e.g. "RL-1". Each id at most once. An empty array when it crosses none, or when the Signer has no red lines.',
+  items: { type: "string" },
+};
+
 /**
  * The structured output the model must return. Each finding type is its own top-level array so
  * later finding types are added as new properties without touching this one.
@@ -160,7 +172,7 @@ export const ANALYSIS_SCHEMA: JsonSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["unitId", "quote", "title", "check", "claims", "severityBand", "rank", "counterOffer"],
+        required: ["unitId", "quote", "title", "check", "claims", "severityBand", "rank", "counterOffer", "redLines"],
         properties: {
           unitId: { type: "string", description: "The id of the one sentence unit this flag comes from, e.g. u12." },
           quote: { type: "string", description: "That unit's text, copied character for character." },
@@ -178,13 +190,14 @@ export const ANALYSIS_SCHEMA: JsonSchema = {
             description:
               "Replacement clause language for the cited sentence, written so the Signer could paste it into an email to the other side. Contract wording only, never advice. Never empty.",
           },
+          redLines: RED_LINES_SCHEMA,
         },
       },
     },
     worthALook: {
       type: "array",
       description:
-        "Clauses that are one-sided or unusual but bounded: the Signer's exposure has a ceiling and an exit exists. Never ranked, and never the same unit as a risk flag.",
+        "Clauses that are one-sided or unusual but bounded: the Signer's exposure has a ceiling and an exit exists. Never ranked, and never the same unit as a risk flag. Never a sentence that crosses one of the Signer's red lines: that sentence is a risk flag.",
       items: {
         type: "object",
         additionalProperties: false,
@@ -208,7 +221,7 @@ export const ANALYSIS_SCHEMA: JsonSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["unitId", "quote", "title", "claims"],
+        required: ["unitId", "quote", "title", "claims", "redLines"],
         properties: {
           unitId: { type: "string", description: "The id of the one sentence unit this note comes from, e.g. u12." },
           quote: { type: "string", description: "That unit's text, copied character for character." },
@@ -218,6 +231,7 @@ export const ANALYSIS_SCHEMA: JsonSchema = {
               "What the clause does to the Signer's position if something else goes wrong, stated flat, e.g. \"Any dispute goes to individual arbitration, with no class action\".",
           },
           claims: CLAIMS_SCHEMA,
+          redLines: RED_LINES_SCHEMA,
         },
       },
     },
@@ -249,6 +263,15 @@ Multiplier notes:
 - Arbitration clauses, class-action waivers and unilateral amendment rights (one side may change the terms without the other agreeing) always go in "multiplierNotes". They are never risk flags and never worth a look, however much legal weight they carry, because they do no harm alone but make every other harm worse.
 - A sentence that contains any of these goes in "multiplierNotes" only. Never put the same unit in more than one list.
 - Write the title and the claims about what the clause does to the Signer's position if something else goes wrong, e.g. "If the Client breaches, the Contractor can only bring the dispute alone, in arbitration". A multiplier note carries no rank, no severity band and no counter-offer.
+
+Red lines:
+- The Signer may list red lines: boundaries they will not accept crossing, in their own words, each shown with an id such as RL-1. A red line is the Signer's words, not part of the document. Never cite or quote a red line as a unit.
+- A sentence crosses a red line when it does what the red line says the Signer will not accept. Judge it from the sentence's own words.
+- Name every red line a sentence crosses, by id, in the "redLines" of that sentence's risk flag or multiplier note. Use an empty array when it crosses none.
+- A sentence that crosses a red line is always a risk flag, even when it is capped or has an exit. Never put it in worthALook. Give it a severity band as usual: "high" only when the cost has no ceiling, otherwise "medium". Give it a counter-offer like any flag. If its harm check would otherwise be bounded, mark that check "flagged", or give the flag the check "other" when it fits no check.
+- The exception: an arbitration, class-action waiver or unilateral amendment sentence that crosses a red line stays a multiplier note, and names the red line there.
+- A red line never creates a finding by itself. Only a sentence in the document that crosses it does. If no sentence crosses a red line, name it nowhere, and never say the document respects it.
+- Red lines do not change missing protections, nice to have, the summary or the checklist, apart from the flagged check above.
 
 Rank the flags by probable cost to this Signer: how likely the clause is to bite, times what it would cost. Rank 1 is the most likely to cost them. Do not rank by worst-case legal exposure.
 
@@ -325,8 +348,8 @@ export function buildAnalysisRequest(
     redLines.length === 0
       ? "The Signer has not stated any red lines."
       : [
-          "The Signer's red lines (boundaries they will not accept crossing). Treat a sentence that crosses one as a risk flag if it also meets the test, or as worth a look if it crosses one but is bounded:",
-          ...redLines.map((line, index) => `${index + 1}. ${JSON.stringify(line.text)}`),
+          "The Signer's red lines, each shown as its id and the Signer's words as a JSON string. Every part of a long document is checked against all of them:",
+          ...redLines.map((line, index) => `[${redLineId(index)}] ${JSON.stringify(line.text)}`),
         ].join("\n");
 
   const unitLines = units.map(unitLine).join("\n");

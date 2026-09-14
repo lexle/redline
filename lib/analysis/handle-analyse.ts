@@ -2,6 +2,7 @@ import { analyse, AnalysisResponseError, CitationError } from "./analyse.ts";
 import type { AnalyseFailureCode, AnalyseResponseBody } from "./api.ts";
 import { isBlankDocument } from "./request.ts";
 import type { RedLine } from "./types.ts";
+import { checkRedLineText } from "../red-lines/validate.ts";
 import { ModelError } from "../model/model-client.ts";
 import type { ModelClient } from "../model/model-client.ts";
 
@@ -37,8 +38,12 @@ export async function handleAnalyseRequest(request: Request, createClient: () =>
   }
 }
 
+/** Red lines are refused, never repaired: each must pass the same check the red lines screen and the table use. */
 function isRedLines(value: unknown): value is RedLine[] {
-  return Array.isArray(value) && value.every((item) => typeof item?.text === "string");
+  return (
+    Array.isArray(value) &&
+    value.every((item) => typeof item?.text === "string" && checkRedLineText(item.text).ok)
+  );
 }
 
 function fail(code: AnalyseFailureCode, status: number): Response {

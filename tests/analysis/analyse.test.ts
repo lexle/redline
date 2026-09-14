@@ -124,6 +124,7 @@ describe("analyse: a citation that does not match fails the whole analysis", () 
           severityBand: "medium",
           rank: 7,
           counterOffer: "The Contractor proposes replacing this sentence.",
+          redLines: [],
         },
       ],
     }));
@@ -409,6 +410,7 @@ describe("analyse: bounded clauses go to Worth a look, outside the Risk flag ran
           severityBand: "medium",
           rank: 7,
           counterOffer: "The Contractor's total liability shall not exceed the fees paid.",
+          redLines: [],
         },
       ],
     }));
@@ -503,7 +505,7 @@ describe("analyse: harm multipliers come back as Multiplier notes, outside the R
     const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
 
     for (const note of result.multiplierNotes) {
-      expect(Object.keys(note).sort()).toEqual(["claims", "kind", "source", "title"]);
+      expect(Object.keys(note).sort()).toEqual(["claims", "kind", "redLines", "source", "title"]);
     }
   });
 
@@ -573,6 +575,7 @@ describe("analyse: harm multipliers come back as Multiplier notes, outside the R
           severityBand: "medium",
           rank: 7,
           counterOffer: "Either party may bring a dispute in a court of competent jurisdiction.",
+          redLines: [],
         },
       ],
     }));

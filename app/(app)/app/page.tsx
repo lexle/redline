@@ -5,6 +5,8 @@ import type { ChangeEvent, FormEvent } from "react";
 import type { AnalyseFailureCode, AnalyseResponseBody } from "../../../lib/analysis/api";
 import { buildAnalyseRequestBody, isBlankDocument } from "../../../lib/analysis/request";
 import { countParts } from "../../../lib/analysis/parts";
+import { redLinesForAnalysis } from "../../../lib/red-lines/store";
+import { getSupabaseClient } from "../../../lib/supabase/client";
 import { ExtractionError, documentFormat, extractText } from "../../../lib/extraction/extract-text";
 import type { Extraction, ExtractionErrorCode } from "../../../lib/extraction/extract-text";
 import type { HarmCheck } from "../../../lib/analysis/checks";
@@ -13,7 +15,9 @@ import type {
   CheckId,
   ChecklistItem,
   Claim,
+  CrossedRedLine,
   InferenceClaim,
+  RedLine,
   MissingProtection,
   MultiplierNote,
   NiceToHave,
@@ -35,14 +39,14 @@ import {
   worthALookMarkId,
 } from "./DocumentView";
 
-type FailureReason = AnalyseFailureCode | ExtractionErrorCode | "empty-file" | "offline";
+type FailureReason = AnalyseFailureCode | ExtractionErrorCode | "empty-file" | "offline" | "red-lines";
 
 type Screen =
   | { state: "idle" }
   | { state: "extracting"; fileName: string }
   | { state: "analysing"; fileName: string; parts: number }
   | { state: "scan"; fileName: string; format: "pdf" | "docx" }
-  | { state: "result"; fileName: string; text: string; result: AnalysisResult }
+  | { state: "result"; fileName: string; text: string; result: AnalysisResult; redLineCount: number }
   | { state: "failed"; fileName: string | null; reason: FailureReason };
 
 const FAILURE_COPY: Record<FailureReason, string> = {
@@ -52,6 +56,7 @@ const FAILURE_COPY: Record<FailureReason, string> = {
   "empty-file": "That file has no text in it.",
   "unreadable-file": "Your browser couldn't read that file. Try choosing it again.",
   offline: "Couldn't reach Redline. Check your connection and try again.",
+  "red-lines": "Your red lines didn't load, so nothing was checked. Try again.",
   "bad-request": "The document text didn't reach the server intact. Try again.",
   "not-configured": "Analysis isn't set up on this server yet.",
   citation:
@@ -177,12 +182,26 @@ export default function AnalysePage() {
 
   async function runAnalysis(text: string, fileName: string) {
     setScreen({ state: "analysing", fileName, parts: countParts(text) });
+    // A signed-in Signer's red lines go with every analysis; signed out, or with accounts not set
+    // up, it runs with none. If they fail to load, nothing is checked: a result run without them
+    // would look like one run with them.
+    let redLines: RedLine[] = [];
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        redLines = await redLinesForAnalysis(supabase);
+      } catch (error) {
+        console.error("[red-lines]", error instanceof Error ? error.message : error);
+        setScreen({ state: "failed", fileName, reason: "red-lines" });
+        return;
+      }
+    }
     let response: Response;
     try {
       response = await fetch("/api/analyse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: buildAnalyseRequestBody(text, []),
+        body: buildAnalyseRequestBody(text, redLines),
       });
     } catch {
       setScreen({ state: "failed", fileName, reason: "offline" });
@@ -197,7 +216,7 @@ export default function AnalysePage() {
       return;
     }
     if ("result" in payload && payload.ok && response.ok) {
-      setScreen({ state: "result", fileName, text, result: payload.result });
+      setScreen({ state: "result", fileName, text, result: payload.result, redLineCount: redLines.length });
     } else {
       const code = "code" in payload && payload.code in FAILURE_COPY ? payload.code : "unexpected";
       setScreen({ state: "failed", fileName, reason: code });
@@ -256,7 +275,7 @@ export default function AnalysePage() {
       </section>
 
       {screen.state === "result" ? (
-        <ResultView fileName={screen.fileName} text={screen.text} result={screen.result} />
+        <ResultView fileName={screen.fileName} text={screen.text} result={screen.result} redLineCount={screen.redLineCount} />
       ) : (
       <section className={styles.outcome} aria-live="polite">
         {screen.state === "idle" && <p className={styles.quiet}>No document yet.</p>}
@@ -319,7 +338,17 @@ export default function AnalysePage() {
  * at a time, and Risk flag 1 starts pulled (DESIGN.md, The One Pulled Flag Rule). Selecting a
  * finding in the rail or a tab on the page pulls it and scrolls the page to its Source sentence.
  */
-function ResultView({ fileName, text, result }: { fileName: string; text: string; result: AnalysisResult }) {
+function ResultView({
+  fileName,
+  text,
+  result,
+  redLineCount,
+}: {
+  fileName: string;
+  text: string;
+  result: AnalysisResult;
+  redLineCount: number;
+}) {
   const firstFlag = result.riskFlags.find((flag) => flag.rank === 1) ?? result.riskFlags[0];
   const [selection, setSelection] = useState<{ id: string | null; request: number }>({
     id: firstFlag ? riskFlagMarkId(firstFlag) : null,
@@ -339,6 +368,11 @@ function ResultView({ fileName, text, result }: { fileName: string; text: string
       />
       <div className={styles.rail}>
         <SummarySection fileName={fileName} sentences={result.summary} />
+        {redLineCount > 0 && (
+          <p className={styles.meta}>
+            {`Checked against your ${redLineCount} red ${redLineCount === 1 ? "line" : "lines"}.`}
+          </p>
+        )}
         {result.nothingFound ? (
           <CleanResult fileName={fileName} checklist={result.checklist} />
         ) : (
@@ -473,6 +507,7 @@ function RiskFlagList({
                   </button>
                 </h3>
                 <p className={styles.severity}>{SEVERITY_COPY[flag.severityBand]}</p>
+                <CrossedRedLines redLines={flag.redLines} />
                 <ClaimList claims={flag.claims} />
                 <blockquote className={styles.quote}>
                   <p>“{flag.source.text}”</p>
@@ -616,6 +651,29 @@ function NiceToHaveSection({ entries }: { entries: readonly NiceToHave[] }) {
   );
 }
 
+/**
+ * The Signer's red lines a finding crosses, quoted in their own words. Those words are the Signer's,
+ * not the Document's, so they are set in Archivo, never Tinos.
+ */
+function CrossedRedLines({ redLines }: { redLines: readonly CrossedRedLine[] }) {
+  if (redLines.length === 0) return null;
+  return (
+    <div className={styles.crossed}>
+      <p className={styles.crossedLabel}>
+        <span className={styles.redLineTip} aria-hidden="true" />
+        {redLines.length === 1 ? "Crosses your red line" : "Crosses your red lines"}
+      </p>
+      <ul className={styles.crossedList}>
+        {redLines.map((line) => (
+          <li key={line.id} className={styles.crossedText}>
+            &ldquo;{line.text}&rdquo;
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** Read-off claims stand flat; inference claims carry a label in words, not a hedge. */
 function ClaimList({ claims }: { claims: readonly (Claim | InferenceClaim)[] }) {
   return (
@@ -671,6 +729,7 @@ function UnrankedSection({
         {entries.map((entry, index) => (
           <li key={`${index}-${entry.source.start}`} className={styles.unrankedEntry}>
             <h3 className={styles.flagTitle}>{entry.title}</h3>
+            {entry.kind === "multiplier-note" && <CrossedRedLines redLines={entry.redLines} />}
             <ClaimList claims={entry.claims} />
             <blockquote className={styles.quote}>
               <p>“{entry.source.text}”</p>

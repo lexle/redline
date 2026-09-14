@@ -9,7 +9,7 @@ import {
   PROTECTION_OUTCOMES,
   RISK_FLAG_CHECKS,
 } from "./checks.ts";
-import { buildAnalysisRequest } from "./prompt.ts";
+import { buildAnalysisRequest, redLineId } from "./prompt.ts";
 import { DEFAULT_PART_BUDGET, splitIntoParts } from "./parts.ts";
 import type { DocumentPart } from "./parts.ts";
 import { segmentSentences } from "./segment.ts";
@@ -18,6 +18,7 @@ import type {
   AnalysisResult,
   ChecklistItem,
   Claim,
+  CrossedRedLine,
   InferenceClaim,
   MissingProtection,
   MultiplierNote,
@@ -92,6 +93,12 @@ interface RawRiskFlag extends RawCitedFinding {
   severityBand: SeverityBand;
   rank: number;
   counterOffer: string;
+  /** Red line ids (`RL-1`, ...) the cited sentence crosses. Every id was one the prompt showed. */
+  redLines: string[];
+}
+
+interface RawMultiplierNote extends RawCitedFinding {
+  redLines: string[];
 }
 
 interface RawSpan {
@@ -131,7 +138,7 @@ interface PartAnalysis {
   readonly part: DocumentPart;
   readonly flags: ShownFinding<RawRiskFlag>[];
   readonly worthALook: ShownFinding<RawCitedFinding>[];
-  readonly multiplierNotes: ShownFinding<RawCitedFinding>[];
+  readonly multiplierNotes: ShownFinding<RawMultiplierNote>[];
   readonly summary: CitedSummarySentence[];
   readonly missingProtections: RawMissingProtection[];
   readonly niceToHave: RawAbsence<NiceToHaveKind>[];
@@ -152,16 +159,19 @@ export async function analyse(
 
   const parts = splitIntoParts(units, options.partBudget ?? DEFAULT_PART_BUDGET);
   const unitsById = new Map<string, SentenceUnit>(units.map((unit) => [unit.id, unit]));
+  // Red lines are numbered in the Signer's order. Every part's request shows all of them, with the
+  // same ids, so a clause crossing one is caught whichever part it falls in.
+  const crossable: CrossedRedLine[] = redLines.map((line, index) => ({ id: redLineId(index), text: line.text }));
   const analysed = await runEveryPart(parts, async (part) => {
     const position = parts.length > 1 ? { index: part.index, count: parts.length } : undefined;
     const response = await modelClient.completeJson(buildAnalysisRequest(part.units, redLines, position));
-    const analysis = readPart(response, part, documentText, unitsById);
+    const analysis = readPart(response, part, documentText, unitsById, crossable);
     // Each part must hold together on its own before it is merged: a part whose checklist
     // contradicts its own findings is as malformed as a whole-Document answer that does.
-    if (parts.length > 1) assemble(documentText, [analysis]);
+    if (parts.length > 1) assemble(documentText, [analysis], crossable);
     return analysis;
   });
-  return assemble(documentText, analysed);
+  return assemble(documentText, analysed, crossable);
 }
 
 /**
@@ -173,10 +183,12 @@ function readPart(
   part: DocumentPart,
   documentText: string,
   unitsById: ReadonlyMap<string, SentenceUnit>,
+  crossable: readonly CrossedRedLine[],
 ): PartAnalysis {
-  const rawFlags = readRiskFlags(response);
-  const rawWorthALook = readUnrankedFindings(response, "worthALook", "worth-a-look");
-  const rawMultiplierNotes = readUnrankedFindings(response, "multiplierNotes", "multiplier-note");
+  const redLineIds = crossable.map((line) => line.id);
+  const rawFlags = readRiskFlags(response, redLineIds);
+  const rawWorthALook = readWorthALook(response);
+  const rawMultiplierNotes = readMultiplierNotes(response, redLineIds);
   const missingProtections = readAbsences(response, "missingProtections", PROTECTION_KINDS, ABSENCE_NAMES.missingProtections);
   const niceToHave = readAbsences(response, "niceToHave", NICE_TO_HAVE_KINDS, ABSENCE_NAMES.niceToHave);
   const rawSummary = readSummary(response);
@@ -269,10 +281,30 @@ function readPart(
  *   union is taken one entry per kind (the earliest part's wording), and any kind the merged
  *   checklist marks present is dropped, whichever part raised it. A kind left as both a Missing
  *   protection and a Nice to have fails as it does within one answer.
+ * - Red lines: a Risk flag or Multiplier note carries every red line any part named for its unit
+ *   (the union), in the Signer's order. Each id was already checked against the red lines shown, and
+ *   the finding's Source sentence was validated in every part that cited it.
  * - `nothingFound` is computed on the merged Risk flags.
+ *
+ * Red lines and Worth a look (the promotion rule): a clause that crosses a red line is never left in
+ * Worth a look. The model is required to send it as a Risk flag, which is how it gets a severity band
+ * and a Counter-offer; a Worth a look entry that names a red line was already rejected as malformed.
+ * Missing protections and Nice to have are not tied to red lines: they cite nothing, so there is no
+ * sentence that could cross one.
  */
-function assemble(documentText: string, analyses: readonly PartAnalysis[]): AnalysisResult {
+function assemble(documentText: string, analyses: readonly PartAnalysis[], crossable: readonly CrossedRedLine[]): AnalysisResult {
   const inParts = analyses.length > 1;
+  const crossedBy = (findings: readonly { raw: { redLines: string[] }; unit: SentenceUnit }[]) => {
+    const ids = new Map<string, Set<string>>();
+    for (const { raw, unit } of findings) {
+      const set = ids.get(unit.id) ?? new Set<string>();
+      for (const id of raw.redLines) set.add(id);
+      ids.set(unit.id, set);
+    }
+    return (unit: SentenceUnit): CrossedRedLine[] => crossable.filter((line) => ids.get(unit.id)?.has(line.id));
+  };
+  const flagRedLines = crossedBy(analyses.flatMap((analysis) => analysis.flags));
+  const noteRedLines = crossedBy(analyses.flatMap((analysis) => analysis.multiplierNotes));
 
   failIfCitedTwice([
     ["risk-flag", analyses.flatMap((analysis) => analysis.flags)],
@@ -302,6 +334,7 @@ function assemble(documentText: string, analyses: readonly PartAnalysis[]): Anal
     claims: shown,
     source: sourceOf(documentText, unit),
     counterOffer: raw.counterOffer.trim(),
+    redLines: flagRedLines(unit),
   }));
 
   // Worth a look is never ranked: it keeps the Document's order.
@@ -320,6 +353,7 @@ function assemble(documentText: string, analyses: readonly PartAnalysis[]): Anal
     title: raw.title,
     claims: shown,
     source: sourceOf(documentText, unit),
+    redLines: noteRedLines(unit),
   }));
 
   const { items: mergedChecklist, units: checkUnits } = mergeChecklists(analyses);
@@ -926,10 +960,32 @@ function citedFindingProblems(finding: Partial<Record<keyof RawCitedFinding, unk
   return problems;
 }
 
-function readRiskFlags(response: unknown): RawRiskFlag[] {
+/**
+ * Problems with a finding's red line ids: not a list of strings, an id the prompt never showed (the
+ * Signer has no such red line), or the same id twice.
+ */
+function redLineProblems(value: unknown, redLineIds: readonly string[]): string[] {
+  if (!Array.isArray(value)) return ["redLines is not a list"];
+  const problems: string[] = [];
+  const seen = new Set<string>();
+  value.forEach((id: unknown, position: number) => {
+    if (typeof id !== "string") {
+      problems.push(`red line ${position} is not an id`);
+    } else if (!redLineIds.includes(id)) {
+      problems.push(`it names red line ${JSON.stringify(id)}, which the Signer does not have`);
+    } else if (seen.has(id)) {
+      problems.push(`it names red line ${id} twice`);
+    } else {
+      seen.add(id);
+    }
+  });
+  return problems;
+}
+
+function readRiskFlags(response: unknown, redLineIds: readonly string[]): RawRiskFlag[] {
   return readList(response, "riskFlags").map((item, index) => {
     const flag = item as Partial<Record<keyof RawRiskFlag, unknown>> | undefined;
-    const problems = citedFindingProblems(flag);
+    const problems = [...citedFindingProblems(flag), ...redLineProblems(flag?.redLines, redLineIds)];
     if (!SEVERITY_BANDS.includes(flag?.severityBand as SeverityBand)) problems.push("severityBand is not high or medium");
     if (typeof flag?.rank !== "number" || !Number.isFinite(flag.rank)) problems.push("rank is not a number");
     if (!RISK_FLAG_CHECKS.includes(flag?.check as RiskFlagCheck)) problems.push("check is not a known check");
@@ -946,20 +1002,43 @@ function readRiskFlags(response: unknown): RawRiskFlag[] {
   });
 }
 
-/** Reads a list of cited findings that carry no rank, band or Counter-offer: Worth a look and Multiplier notes. */
-function readUnrankedFindings(
-  response: unknown,
-  key: "worthALook" | "multiplierNotes",
-  findingType: "worth-a-look" | "multiplier-note",
-): RawCitedFinding[] {
-  return readList(response, key).map((item, index) => {
-    const entry = item as Partial<Record<keyof RawCitedFinding, unknown>> | undefined;
+/**
+ * Reads Worth a look: cited findings with no rank, band or Counter-offer. An entry that names any red
+ * line is malformed. A clause crossing a red line must come back as a Risk flag, with a severity band
+ * and a Counter-offer; `analyse` never promotes it itself, because it would have to invent both.
+ */
+function readWorthALook(response: unknown): RawCitedFinding[] {
+  return readList(response, "worthALook").map((item, index) => {
+    const entry = item as (Partial<Record<keyof RawCitedFinding, unknown>> & { redLines?: unknown }) | undefined;
     const problems = citedFindingProblems(entry);
+    if (entry !== undefined && entry !== null && "redLines" in entry) {
+      const named = entry.redLines;
+      if (!Array.isArray(named)) {
+        problems.push("redLines is not a list");
+      } else if (named.length > 0) {
+        problems.push(
+          `it names red line ${named.map((id) => JSON.stringify(id)).join(", ")}, but a clause that crosses a red line is a Risk flag, never Worth a look`,
+        );
+      }
+    }
+    if (problems.length > 0) {
+      throw new AnalysisResponseError(`${FINDING_NAMES["worth-a-look"].one} #${index} in the model's answer is malformed: ${problems.join(", ")}.`);
+    }
+    const { unitId, quote, title, claims } = entry as RawCitedFinding;
+    return { unitId, quote, title, claims };
+  });
+}
+
+/** Reads Multiplier notes: cited findings with no rank, band or Counter-offer, naming the red lines they cross. */
+function readMultiplierNotes(response: unknown, redLineIds: readonly string[]): RawMultiplierNote[] {
+  return readList(response, "multiplierNotes").map((item, index) => {
+    const entry = item as Partial<Record<keyof RawMultiplierNote, unknown>> | undefined;
+    const problems = [...citedFindingProblems(entry), ...redLineProblems(entry?.redLines, redLineIds)];
     if (problems.length > 0) {
       throw new AnalysisResponseError(
-        `${FINDING_NAMES[findingType].one} #${index} in the model's answer is malformed: ${problems.join(", ")}.`,
+        `${FINDING_NAMES["multiplier-note"].one} #${index} in the model's answer is malformed: ${problems.join(", ")}.`,
       );
     }
-    return entry as RawCitedFinding;
+    return entry as RawMultiplierNote;
   });
 }

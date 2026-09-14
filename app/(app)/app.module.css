@@ -15,7 +15,10 @@
 
 .bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px 32px;
   padding-block: 20px;
   border-bottom: 1px solid rgb(255 255 255 / 0.12);
 }
@@ -1071,4 +1074,288 @@
 .questionButton:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Navigation and sign-in state in the shell bar. Standard controls, Archivo, no color beyond focus. */
+
+.nav {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.navLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--desk-ink-2);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: color 180ms var(--ease);
+}
+
+.navLink:hover,
+.navLink[aria-current="page"] {
+  color: var(--desk-ink);
+}
+
+.navLink[aria-current="page"] {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.35em;
+}
+
+.account {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.accountEmail {
+  color: var(--desk-ink-2);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.accountError {
+  color: var(--desk-ink);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.navButton {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgb(255 255 255 / 0.28);
+  border-radius: 0;
+  background: transparent;
+  color: var(--desk-ink);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 180ms var(--ease), opacity 180ms var(--ease);
+}
+
+.navButton:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.navButton:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.navButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Sign-in and red lines: one narrow column of standard form controls. */
+
+.formPage {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 640px;
+}
+
+.formPage > .status,
+.formPage > .failure,
+.formPage > .notice {
+  margin-top: 24px;
+}
+
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 8px;
+  color: var(--desk-ink);
+  font-weight: 700;
+}
+
+.linkRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 24px;
+  margin: 0;
+}
+
+.textInput {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+}
+
+.textInput:focus-visible,
+.redLineInput:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.textInput:disabled,
+.redLineInput:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.formError {
+  margin: 20px 0 0;
+  color: var(--desk-ink);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.notice {
+  width: 100%;
+  padding: 20px 24px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.notice .textButton:focus-visible,
+.failure .textButton:focus-visible {
+  outline: 2px solid var(--focus-on-paper);
+}
+
+/* Red lines: the Signer's own set of flags, each with a flag tip, in the Signer's words (Archivo). */
+
+.redLinesEmpty {
+  width: 100%;
+  margin-top: 28px;
+  padding: 20px 24px;
+  border: 1px dashed rgb(255 255 255 / 0.28);
+}
+
+.redLinesEmpty .quiet {
+  margin-top: 8px;
+}
+
+.redLineList {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.redLine {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px 16px;
+  background: rgb(255 255 255 / 0.06);
+}
+
+.redLineTip {
+  display: inline-block;
+  flex: none;
+  width: 22px;
+  height: 10px;
+  margin-top: 6px;
+  background: linear-gradient(90deg, var(--tape-clear) 0 7px, var(--flag) 7px);
+}
+
+.redLineBody,
+.redLineEdit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.redLineText {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.redLineActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 20px;
+}
+
+.redLineInput {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.redLineEdit .redLineInput {
+  margin-top: 0;
+}
+
+.redLineEdit .navButton {
+  margin-top: 12px;
+}
+
+/* A finding that crosses a red line quotes it. The Signer's words, so Archivo, never Tinos. */
+
+.crossed {
+  margin-top: 10px;
+}
+
+.crossedLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.crossedLabel .redLineTip {
+  margin-top: 0;
+}
+
+.crossedList {
+  margin: 4px 0 0;
+  padding: 0 0 0 30px;
+  list-style: none;
+}
+
+.crossedText {
+  font-family: var(--font-ui);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }

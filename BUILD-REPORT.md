@@ -79,6 +79,14 @@ Unattended build run started 2026-09-14. This file is updated as work lands.
   Fireworks key under
   https://openrouter.ai/settings/integrations (BYOK, which gets its own limits), or change the
   provider pin. Both are your call, because you set the pin, so neither was done.
+- **Everything that needs a Supabase project (ticket 19).** No project exists, so none of the
+  following has run: the migration SQL, sign-in links being sent and redeemed, sign-out, red line
+  list/add/edit/delete, and whether the RLS policies really limit a Signer to their own rows. What
+  is tested: with both Supabase variables unset, the app builds, `/app`, `/sign-in` and `/red-lines`
+  answer 200, the account screens say accounts are not set up, and a Document analyses with no red
+  lines. How red lines drive the analysis is tested at the `analyse` seam. No test mocks supabase-js,
+  because that would test the mock. When you create the project, add `<site>/sign-in` to its
+  allowed redirect URLs.
 - **CI on GitHub works.** The first push, `f9a0830` (tickets 01 to 15 and 17), ran the CI workflow
   (typecheck, tests, build) and it passed.
 

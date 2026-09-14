@@ -80,6 +80,8 @@ export interface ModelRiskFlag {
   rank: number;
   /** Optional here only so tests can send a response that omits it; the product requires it. */
   counterOffer?: string;
+  /** Red line ids the flag names. */
+  redLines: string[];
 }
 
 export interface ModelWorthALook {
@@ -94,6 +96,7 @@ export interface ModelMultiplierNote {
   quote: string;
   title: string;
   claims: ModelClaim[];
+  redLines: string[];
 }
 
 export interface ModelMissingProtection {
@@ -182,6 +185,11 @@ export interface SidecarClientOptions {
    * Corrupt or reshape the payload before it is returned. For a request showing only part of the
    * Document it runs on that part's answer, with the unit ids the request showed.
    */
+  /**
+   * Red line ids the finding for a planted Risk flag or Multiplier note names, keyed by clause id
+   * (e.g. { "RF-4": ["RL-1"] }). Applies to whole-Document and part answers alike.
+   */
+  redLinesFor?: Record<string, string[]>;
   tamper?: (payload: ModelPayload, shown: { unitIds: readonly string[] }) => ModelPayload;
 }
 
@@ -271,6 +279,7 @@ export class SidecarModelClient implements ModelClient {
   private readonly fixture: Fixture;
   private readonly units: SentenceUnit[];
   private readonly tamper: SidecarClientOptions["tamper"];
+  private readonly redLinesFor: Record<string, string[]>;
 
   constructor(fixture: Fixture, options: SidecarClientOptions | SidecarClientOptions["tamper"] = {}) {
     const {
@@ -290,6 +299,7 @@ export class SidecarModelClient implements ModelClient {
       alsoNiceToHave = [],
       contradictChecklist = [],
       checklistQuotes = {},
+      redLinesFor = {},
       tamper,
     } = typeof options === "function" ? { tamper: options } : options;
     const expectedNiceToHave = fixture.sidecar.expectedNiceToHave ?? [];
@@ -328,6 +338,11 @@ export class SidecarModelClient implements ModelClient {
         throw new Error(`Options name ${id}, which is not a planted multiplier note in ${fixture.sidecar.document}.`);
       }
     }
+    for (const id of Object.keys(redLinesFor)) {
+      if (![...planted, ...plantedMultiplierNotes].some((clause) => clause.id === id)) {
+        throw new Error(`Options name ${id}, which is not a planted risk flag or multiplier note in ${fixture.sidecar.document}.`);
+      }
+    }
     for (const id of Object.keys(extraClaims)) {
       if (![...planted, ...plantedWorthALook, ...plantedMultiplierNotes].some((clause) => clause.id === id)) {
         throw new Error(`Options name ${id}, which is not a planted cited clause in ${fixture.sidecar.document}.`);
@@ -357,6 +372,7 @@ export class SidecarModelClient implements ModelClient {
           severityBand: clause.severityBand,
           rank: clause.expectedRank,
           counterOffer: counterOffers[clause.id] ?? counterOfferFor(clause),
+          redLines: [...(redLinesFor[clause.id] ?? [])],
         };
         if (omitCounterOffer.includes(clause.id)) delete flag.counterOffer;
         return flag;
@@ -383,6 +399,7 @@ export class SidecarModelClient implements ModelClient {
           quote: multiplierNoteQuotes[clause.id] ?? unit.text,
           title: clause.id,
           claims: [readOffClaimFor(clause), inferenceClaimFor(clause), ...(extraClaims[clause.id] ?? [])],
+          redLines: [...(redLinesFor[clause.id] ?? [])],
         };
       })
       .reverse();
@@ -473,6 +490,7 @@ export class SidecarModelClient implements ModelClient {
     this.fixture = fixture;
     this.units = units;
     this.tamper = tamper;
+    this.redLinesFor = redLinesFor;
     this.payload = tamper ? tamper(structuredClone(payload), { unitIds: units.map((unit) => unit.id) }) : payload;
   }
 
@@ -516,6 +534,7 @@ export class SidecarModelClient implements ModelClient {
         severityBand: clause.severityBand!,
         rank: clause.expectedRank!,
         counterOffer: counterOfferFor(clause),
+        redLines: [...(this.redLinesFor[clause.id] ?? [])],
       }),
     );
     const unranked = (findingType: string) =>
@@ -580,7 +599,10 @@ export class SidecarModelClient implements ModelClient {
       summary,
       riskFlags,
       worthALook: unranked("worth-a-look"),
-      multiplierNotes: unranked("multiplier-note"),
+      multiplierNotes: unranked("multiplier-note").map((note) => ({
+        ...note,
+        redLines: [...(this.redLinesFor[note.title] ?? [])],
+      })),
       missingProtections,
       niceToHave,
       checklist,
