@@ -1,9 +1,50 @@
 import type { JsonCompletionRequest, JsonSchema } from "../model/model-client.ts";
 import type { SentenceUnit } from "./segment.ts";
 import type { RedLine } from "./types.ts";
-import { PROTECTION_KINDS, PROVENANCE_TIERS, SEVERITY_BANDS } from "./types.ts";
+import { NICE_TO_HAVE_KINDS, PROTECTION_KINDS, PROVENANCE_TIERS, SEVERITY_BANDS } from "./types.ts";
+import { CHECK_DESCRIPTIONS, CHECK_IDS, CHECK_OUTCOMES, HARM_CHECKS, RISK_FLAG_CHECKS } from "./checks.ts";
 
 export const ANALYSIS_SCHEMA_NAME = "document_analysis";
+
+/** The shape shared by Missing protections and Nice to have: an absence that cites nothing. */
+function absenceItemSchema(kinds: readonly string[], statementExample: string): JsonSchema {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["protection", "statement", "claims", "proposedInsertion"],
+    properties: {
+      protection: { type: "string", enum: [...kinds] },
+      statement: {
+        type: "string",
+        description: `One flat sentence saying the document does not address the matter, e.g. "${statementExample}" No section numbers, no location in the document.`,
+      },
+      claims: {
+        type: "array",
+        description:
+          "How the absence would likely play out, one short sentence per item. May be empty. Never read-off: there is no sentence to read it off.",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["tier", "text"],
+          properties: {
+            tier: {
+              type: "string",
+              enum: ["inference", "needs-signer-facts"],
+              description:
+                "inference: how the absence would likely play out. needs-signer-facts: depends on the Signer's jurisdiction, industry or leverage.",
+            },
+            text: { type: "string" },
+          },
+        },
+      },
+      proposedInsertion: {
+        type: "string",
+        description:
+          "Clause text the Signer could ask the other side to add, written as contract wording using the document's names for the parties. Never advice. Never empty.",
+      },
+    },
+  };
+}
 
 const CLAIMS_SCHEMA: JsonSchema = {
   type: "array",
@@ -32,8 +73,45 @@ const CLAIMS_SCHEMA: JsonSchema = {
 export const ANALYSIS_SCHEMA: JsonSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["summary", "riskFlags", "worthALook", "multiplierNotes", "missingProtections"],
+  required: ["summary", "riskFlags", "worthALook", "multiplierNotes", "missingProtections", "niceToHave", "checklist"],
   properties: {
+    checklist: {
+      type: "array",
+      description: "Every check, exactly once, with its outcome. Never empty.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["check", "outcome", "unitId", "quote", "detail"],
+        properties: {
+          check: { type: "string", enum: [...CHECK_IDS] },
+          outcome: {
+            type: "string",
+            enum: [...CHECK_OUTCOMES],
+            description:
+              "Harm checks: not-found, bounded or flagged. Protection checks: present or missing.",
+          },
+          unitId: {
+            type: "string",
+            description: "For bounded and present only: the unit the outcome rests on. Otherwise an empty string.",
+          },
+          quote: {
+            type: "string",
+            description: "For bounded and present only: that unit's text, copied character for character. Otherwise an empty string.",
+          },
+          detail: {
+            type: "string",
+            description:
+              'For bounded and present only: one short flat phrase read off the cited unit, e.g. "Invoices are due within fifteen days". Otherwise an empty string.',
+          },
+        },
+      },
+    },
+    niceToHave: {
+      type: "array",
+      description:
+        "Minor protections the document as a whole leaves out, not harmful enough to be missing protections. No unit id and no quote. At most one per kind, and never a kind that is also a missing protection.",
+      items: absenceItemSchema(NICE_TO_HAVE_KINDS, "The agreement does not say whether the Designer may show the work in a portfolio."),
+    },
     summary: {
       type: "array",
       description:
@@ -74,54 +152,23 @@ export const ANALYSIS_SCHEMA: JsonSchema = {
       type: "array",
       description:
         "Protections the document as a whole does not address. No unit id and no quote: these cite nothing. At most one per protection kind.",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["protection", "statement", "claims", "proposedInsertion"],
-        properties: {
-          protection: { type: "string", enum: [...PROTECTION_KINDS] },
-          statement: {
-            type: "string",
-            description:
-              'One flat sentence saying the document does not address the matter, e.g. "The agreement never says when the Contractor is paid." No section numbers, no location in the document.',
-          },
-          claims: {
-            type: "array",
-            description:
-              "How the absence would likely play out, one short sentence per item. May be empty. Never read-off: there is no sentence to read it off.",
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["tier", "text"],
-              properties: {
-                tier: {
-                  type: "string",
-                  enum: ["inference", "needs-signer-facts"],
-                  description:
-                    "inference: how the absence would likely play out. needs-signer-facts: depends on the Signer's jurisdiction, industry or leverage.",
-                },
-                text: { type: "string" },
-              },
-            },
-          },
-          proposedInsertion: {
-            type: "string",
-            description:
-              "Clause text the Signer could ask the other side to add, written as contract wording using the document's names for the parties. Never advice. Never empty.",
-          },
-        },
-      },
+      items: absenceItemSchema(PROTECTION_KINDS, "The agreement never says when the Contractor is paid."),
     },
     riskFlags: {
       type: "array",
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["unitId", "quote", "title", "claims", "severityBand", "rank", "counterOffer"],
+        required: ["unitId", "quote", "title", "check", "claims", "severityBand", "rank", "counterOffer"],
         properties: {
           unitId: { type: "string", description: "The id of the one sentence unit this flag comes from, e.g. u12." },
           quote: { type: "string", description: "That unit's text, copied character for character." },
           title: { type: "string", description: "A short plain-English name for what the clause does." },
+          check: {
+            type: "string",
+            enum: [...RISK_FLAG_CHECKS],
+            description: "The harm check this flag falls under, or other when it fits none of them.",
+          },
           claims: CLAIMS_SCHEMA,
           severityBand: { type: "string", enum: [...SEVERITY_BANDS] },
           rank: { type: "integer", description: "1 is the flag most likely to cost this Signer." },
@@ -176,7 +223,7 @@ export const ANALYSIS_SCHEMA: JsonSchema = {
   },
 };
 
-const SYSTEM_PROMPT = `You read a document that a freelancer or small-business owner (the Signer) is about to sign. It was drafted by the other side. You write a short grounded summary of it, you find the sentences that could hurt the Signer and return them as risk flags, you list the sentences that are one-sided or unusual but bounded under worth a look, you list the sentences that make other harms worse under multiplier notes, and you list the protections the document fails to give the Signer at all under missing protections.
+const SYSTEM_PROMPT = `You read a document that a freelancer or small-business owner (the Signer) is about to sign. It was drafted by the other side. You write a short grounded summary of it, you find the sentences that could hurt the Signer and return them as risk flags, you list the sentences that are one-sided or unusual but bounded under worth a look, you list the sentences that make other harms worse under multiplier notes, you list the protections the document fails to give the Signer at all under missing protections, you list minor omissions under nice to have, and you return the checklist of what you examined.
 
 Summary:
 - "summary" says, in a few short plain sentences, what the document is and what it commits the Signer to. Keep it short and literal: usually three to six sentences.
@@ -237,6 +284,22 @@ Missing protections:
 - "statement" is one flat sentence saying the document does not address the matter, e.g. "The agreement never says when the Contractor is paid." Do not hedge it.
 - "claims" may explain how the absence would likely play out, tagged "inference". Anything that depends on the Signer's jurisdiction, industry or leverage is tagged "needs-signer-facts" and is never shown. Never tag a missing protection's claim "read-off".
 - "proposedInsertion" is clause text the Signer could ask the other side to add, written as contract wording with the document's own names for the parties. Not advice, not an explanation, no "you should". Where it needs a figure or date the document does not give, leave a bracketed blank such as "[number] days". Never leave it empty.
+
+Nice to have:
+- "niceToHave" lists protections the document leaves out that would help the Signer but whose absence is not harmful enough to be a missing protection. The kinds are the five missing protection kinds above, plus "portfolio-rights" (whether the Signer may show the work), "attribution" (credit for the work), "expense-reimbursement", "feedback-deadlines" (when the other side must respond) and "confidentiality".
+- It follows every rule for missing protections: it cites nothing, "statement" says flatly that the document does not include it, claims are never read-off, and "proposedInsertion" is never empty.
+- A kind is either a missing protection or a nice to have, never both. At most one nice to have per kind. Return an empty array when there are none; most documents need few or none.
+
+Checklist:
+- "checklist" records what you examined. Return every one of these checks exactly once:
+${HARM_CHECKS.map((check) => `  - "${check}" (harm check): ${CHECK_DESCRIPTIONS[check]}.`).join("\n")}
+${PROTECTION_KINDS.map((check) => `  - "${check}" (protection check): ${CHECK_DESCRIPTIONS[check]}.`).join("\n")}
+- Every risk flag names its harm check in "check", or "other" when it fits none.
+- A harm check's outcome is "flagged" when at least one risk flag names it; "bounded" when a clause of that kind is present but has a cap or an exit, so it is not a risk flag; or "not-found" when no sentence in the document is a clause of that kind. Never mark a check not-found or bounded when a risk flag names it, and never mark it flagged when none does.
+- A protection check's outcome is "present" when a sentence states the protection, or "missing" when the document leaves it out. A missing protection check always has a missing protection or a nice to have of that kind, and a present one never does.
+- "bounded" and "present" cite the one unit they rest on, with its unit id and its exact "quote" as for any citation, and a "detail": one short flat phrase read off that unit, such as "Liability is capped at the total fees". Say only what that unit says.
+- "not-found", "flagged" and "missing" cite nothing: send "unitId", "quote" and "detail" as empty strings.
+- The checklist never says the document is safe, fair or ready to sign. It says what was checked and what the text shows.
 
 - Return an empty missingProtections array when the document addresses all five.
 - If no sentence meets the test, return an empty riskFlags array. A clean document is a real result. Likewise, return an empty worthALook array when no bounded one-sided or unusual clause is present, and an empty multiplierNotes array when the document has no arbitration, class-action waiver or unilateral amendment clause.`;

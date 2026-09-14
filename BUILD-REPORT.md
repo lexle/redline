@@ -43,6 +43,17 @@ Unattended build run started 2026-09-14. This file is updated as work lands.
     decide explicitly. An uncited answer is the paraphrase ADR-0001 rejects, so answers cite spans.
 13. **Sign-in is a Supabase email one-time link, with tables reached from the browser under RLS.**
     There is no password handling to secure and no service key anywhere.
+14. **Inconsistent model output fails the analysis; nothing guesses at what the model meant.**
+    Tickets 04 to 13 fail an analysis as malformed when it is missing a required list, has a blank
+    Counter-offer or Proposed insertion, cites one sentence under two finding types, withholds every
+    claim on a finding, or has a checklist that contradicts the findings. Each rule follows the
+    fail-loudly line in ADR-0001 and the spec. The cost is that a real model will trip these more
+    often than a lenient parser would. How often is unmeasured, because the real model could not be
+    reached (see Not verified). If it trips them too often, fix the prompt, not the checks.
+15. **The checklist cites its positive claims.** A check saying a protection is present, or a harm is
+    bounded, cites the sentence it rests on through the same verbatim check as a Risk flag. Saying
+    "payment terms present" is a claim about the text, and CLAUDE.md says state only what the
+    Document says. Auto-renewal is folded into the lock-in check.
 
 ## Not verified
 

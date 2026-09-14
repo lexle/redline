@@ -4,8 +4,13 @@ import { describe, expect, it } from "vitest";
 import { analyse, AnalysisResponseError, CitationError } from "../../lib/analysis/analyse";
 import { segmentSentences } from "../../lib/analysis/segment";
 import { ANALYSIS_SCHEMA } from "../../lib/analysis/prompt";
-import type { MissingProtection, RiskFlag, SummarySentence } from "../../lib/analysis/types";
+import { CHECK_IDS, HARM_CHECKS } from "../../lib/analysis/checks";
+import type { MissingProtection, NiceToHave, RiskFlag, SummarySentence } from "../../lib/analysis/types";
 import {
+  CHECK_FOR_CLAUSE_TYPE,
+  checklistDetailFor,
+  niceToHaveInsertionFor,
+  niceToHaveStatementFor,
   counterOfferFor,
   inferenceClaimFor,
   inferenceClaimForAbsence,
@@ -115,6 +120,7 @@ describe("analyse: a citation that does not match fails the whole analysis", () 
           quote: doubleSpaced!.text.replace(/ {2,}/g, " "),
           title: "Collapsed",
           claims: [{ tier: "read-off", text: "Quote with whitespace collapsed." }],
+          check: "other",
           severityBand: "medium",
           rank: 7,
           counterOffer: "The Contractor proposes replacing this sentence.",
@@ -399,6 +405,7 @@ describe("analyse: bounded clauses go to Worth a look, outside the Risk flag ran
           quote: cappedUnit.text,
           title: "Capped warranty liability",
           claims: [{ tier: "read-off", text: "Warranty liability is capped at two times the fees." }],
+          check: "other",
           severityBand: "medium",
           rank: 7,
           counterOffer: "The Contractor's total liability shall not exceed the fees paid.",
@@ -562,6 +569,7 @@ describe("analyse: harm multipliers come back as Multiplier notes, outside the R
           quote: arbitrationUnit.text,
           title: "Binding individual arbitration",
           claims: [{ tier: "read-off", text: "Every dispute goes to binding individual arbitration." }],
+          check: "other",
           severityBand: "medium",
           rank: 7,
           counterOffer: "Either party may bring a dispute in a court of competent jurisdiction.",
@@ -1064,5 +1072,288 @@ describe("analyse: every summary sentence is grounded in the Document", () => {
     };
     expect("sources" in uncited).toBe(false);
     expect(empty.sources).toHaveLength(0);
+  });
+});
+
+describe("analyse: a clean Document comes back clean, with the checklist and Nice to have", () => {
+  const presentProtections = clean.sidecar.presentProtections!;
+  const expectedNiceToHave = clean.sidecar.expectedNiceToHave!;
+  const cleanUnits = segmentSentences(clean.text);
+
+  it("yields zero Risk flags, the nothing-found state and a checklist where every check passes", async () => {
+    const result = await analyse(clean.text, [], new SidecarModelClient(clean));
+
+    expect(result.riskFlags).toEqual([]);
+    expect(result.nothingFound).toBe(true);
+    expect(result.checklist.map((item) => item.check)).toEqual([...CHECK_IDS]);
+    for (const item of result.checklist) {
+      expect(["not-found", "bounded", "present"]).toContain(item.outcome);
+    }
+    expect(result.checklist.filter((item) => item.outcome === "present").map((item) => item.check)).toEqual(
+      presentProtections.map((entry) => entry.id),
+    );
+  });
+
+  it("cites every present protection with the stored sentence that states it", async () => {
+    const result = await analyse(clean.text, [], new SidecarModelClient(clean));
+
+    for (const present of presentProtections) {
+      const item = result.checklist.find((candidate) => candidate.check === present.id);
+      expect(item?.outcome).toBe("present");
+      if (item?.outcome !== "present") continue;
+      const unit = cleanUnits.find((candidate) => candidate.text === present.sentence)!;
+      expect(item.source).toEqual({ start: unit.start, end: unit.end, text: present.sentence });
+      expect(clean.text.slice(item.source.start, item.source.end)).toBe(item.source.text);
+      expect(item.detail).toBe(checklistDetailFor(present.id));
+    }
+  });
+
+  it("gives a check that found nothing no source, since it claims an absence", async () => {
+    const result = await analyse(clean.text, [], new SidecarModelClient(clean));
+
+    for (const item of result.checklist.filter((candidate) => candidate.outcome === "not-found")) {
+      expect(Object.keys(item).sort()).toEqual(["check", "kind", "outcome"]);
+    }
+  });
+
+  it("returns the clean agreement's Nice to have with no source property and its Proposed insertion", async () => {
+    const result = await analyse(clean.text, [], new SidecarModelClient(clean));
+
+    expect(result.niceToHave.map((entry) => entry.protection)).toEqual(expectedNiceToHave.map((entry) => entry.id));
+    expect(result.niceToHave.map((entry) => entry.id)).toEqual(expectedNiceToHave.map((_, index) => `NH-0${index + 1}`));
+    result.niceToHave.forEach((entry, index) => {
+      const expected = expectedNiceToHave[index];
+      expect(entry.kind).toBe("nice-to-have");
+      expect("source" in entry).toBe(false);
+      expect(Object.keys(entry).sort()).toEqual(["claims", "id", "kind", "proposedInsertion", "protection", "statement"]);
+      expect(entry.statement).toBe(niceToHaveStatementFor(expected));
+      expect(entry.proposedInsertion).toBe(niceToHaveInsertionFor(expected));
+      expect(clean.text).not.toContain(entry.proposedInsertion);
+    });
+    expect(result.missingProtections).toEqual([]);
+  });
+
+  it("throws CitationError when a present protection's quote differs from the stored sentence", async () => {
+    const timing = presentProtections.find((entry) => entry.id === "payment-timing")!;
+    const tampered = timing.sentence.replace("fifteen", "thirty");
+    const client = new SidecarModelClient(clean, { checklistQuotes: { "payment-timing": tampered } });
+
+    const failure = await analyse(clean.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(CitationError);
+    const unit = cleanUnits.find((candidate) => candidate.text === timing.sentence)!;
+    expect((failure as CitationError).failures).toEqual([
+      expect.objectContaining({ findingType: "checklist-item", unitId: unit.id, quote: tampered, reason: "quote-mismatch" }),
+    ]);
+  });
+
+  it("fails as malformed when a present protection cites nothing", async () => {
+    const client = new SidecarModelClient(clean, (payload) => {
+      const item = payload.checklist.find((candidate) => candidate.check === "kill-fee")!;
+      Object.assign(item, { unitId: "", quote: "" });
+      return payload;
+    });
+
+    const failure = await analyse(clean.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain("unitId is blank");
+  });
+
+  it("fails as malformed when a check that claims an absence carries a quote", async () => {
+    const client = new SidecarModelClient(clean, (payload) => {
+      const item = payload.checklist.find((candidate) => candidate.check === "non-compete")!;
+      Object.assign(item, { unitId: cleanUnits[0].id, quote: cleanUnits[0].text });
+      return payload;
+    });
+
+    const failure = await analyse(clean.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect(failure).not.toBeInstanceOf(CitationError);
+    expect((failure as Error).message).toContain("a not-found check cites nothing");
+  });
+
+  it("fails as malformed when the checklist is missing or empty", async () => {
+    for (const client of [
+      new SidecarModelClient(clean, (payload) => {
+        delete (payload as Partial<typeof payload>).checklist;
+        return payload;
+      }),
+      new SidecarModelClient(clean, (payload) => ({ ...payload, checklist: [] })),
+    ]) {
+      const failure = await analyse(clean.text, [], client).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(AnalysisResponseError);
+      expect((failure as Error).message).toContain("checklist");
+    }
+  });
+
+  it("fails as malformed when the checklist leaves out a check", async () => {
+    const client = new SidecarModelClient(clean, (payload) => ({
+      ...payload,
+      checklist: payload.checklist.filter((item) => item.check !== "lock-in"),
+    }));
+
+    const failure = await analyse(clean.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain("leaves out lock-in");
+  });
+
+  it("fails when the checklist says payment timing is present alongside a payment-timing Missing protection", async () => {
+    const client = new SidecarModelClient(adhesion, { contradictChecklist: ["payment-timing"] });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain("payment-timing is marked present, but MP-01");
+  });
+
+  it("fails when the checklist says there is no uncapped liability alongside a Risk flag of that kind", async () => {
+    const client = new SidecarModelClient(adhesion, { contradictChecklist: ["uncapped-liability"] });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain("uncapped-liability is marked not-found, but Risk flag #1, #2");
+  });
+
+  it("fails when the checklist says a problem was found that no finding carries", async () => {
+    for (const check of ["personal-guarantee", "late-payment-remedy"]) {
+      const client = new SidecarModelClient(clean, { contradictChecklist: [check] });
+
+      const failure = await analyse(clean.text, [], client).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(AnalysisResponseError);
+      expect((failure as Error).message).toContain(`${check} is marked`);
+    }
+  });
+
+  it("fails when a bounded check cites the sentence of a Risk flag", async () => {
+    const guarantee = plantedRiskFlags.find((clause) => clause.clauseType === "personal-guarantee")!;
+    const unit = segmentSentences(adhesion.text).find((candidate) => candidate.text === guarantee.sentence)!;
+    const client = new SidecarModelClient(adhesion, (payload) => {
+      payload.riskFlags.find((flag) => flag.quote === guarantee.sentence)!.check = "other";
+      Object.assign(payload.checklist.find((item) => item.check === "personal-guarantee")!, {
+        outcome: "bounded",
+        unitId: unit.id,
+        quote: unit.text,
+        detail: "The guarantee is limited.",
+      });
+      return payload;
+    });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain(`citing unit ${unit.id}, which is Risk flag #3`);
+  });
+
+  it("fails the whole analysis when a Nice to have Proposed insertion is blank", async () => {
+    for (const blank of ["", "  \n"]) {
+      const client = new SidecarModelClient(clean, { niceToHaveInsertions: { "portfolio-rights": blank } });
+
+      const failure = await analyse(clean.text, [], client).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(AnalysisResponseError);
+      expect((failure as Error).message).toContain("Nice to have #0");
+      expect((failure as Error).message).toContain("proposedInsertion is blank");
+    }
+  });
+
+  it("fails the whole analysis when a Nice to have carries a source or a quote", async () => {
+    const client = new SidecarModelClient(clean, (payload) => {
+      payload.niceToHave[0].source = { start: 0, end: 5, text: clean.text.slice(0, 5) };
+      return payload;
+    });
+
+    const failure = await analyse(clean.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain("a nice to have cites nothing");
+  });
+
+  it("withholds a Nice to have claim that needs facts about the Signer, keeping the entry", async () => {
+    const leverageClaim = { tier: "needs-signer-facts" as const, text: "Clients in your industry always allow portfolio use." };
+    const client = new SidecarModelClient(clean, (payload) => {
+      payload.niceToHave[0].claims.push(leverageClaim);
+      return payload;
+    });
+    const result = await analyse(clean.text, [], client);
+
+    expect(result.niceToHave[0].claims).toEqual([inferenceClaimForAbsence(expectedNiceToHave[0])]);
+    expect(JSON.stringify(result)).not.toContain(leverageClaim.text);
+  });
+
+  it("fails when the same kind comes back as a Missing protection and as a Nice to have", async () => {
+    const client = new SidecarModelClient(adhesion, { alsoNiceToHave: ["kill-fee"] });
+
+    const failure = await analyse(adhesion.text, [], client).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AnalysisResponseError);
+    expect((failure as Error).message).toContain("as a Missing protection and as a Nice to have: kill-fee");
+  });
+
+  it("does not call the adhesion contract clean, and marks each harm check it flags", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion));
+
+    expect(result.nothingFound).toBe(false);
+    expect(result.riskFlags.length).toBeGreaterThan(0);
+    for (const check of HARM_CHECKS) {
+      const item = result.checklist.find((candidate) => candidate.check === check)!;
+      const ranks = result.riskFlags.filter((flag) => flag.check === check).map((flag) => flag.rank);
+      expect(item.outcome).toBe("flagged");
+      expect(item.outcome === "flagged" && item.riskFlagRanks).toEqual(ranks);
+    }
+    for (const clause of plantedRiskFlags) {
+      const flag = result.riskFlags.find((candidate) => candidate.source.text === clause.sentence)!;
+      expect(flag.check).toBe(CHECK_FOR_CLAUSE_TYPE[clause.clauseType]);
+    }
+    for (const entry of result.missingProtections) {
+      const item = result.checklist.find((candidate) => candidate.check === entry.protection)!;
+      expect(item).toEqual({
+        kind: "checklist-item",
+        check: entry.protection,
+        outcome: "missing",
+        absence: { kind: "missing-protection", id: entry.id },
+      });
+    }
+  });
+
+  it("computes nothing-found from the Risk flags, whatever else the model sends", async () => {
+    const result = await analyse(adhesion.text, [], new SidecarModelClient(adhesion, { onlyMultiplierNotes: true }));
+
+    expect(result.riskFlags).toEqual([]);
+    expect(result.nothingFound).toBe(true);
+    expect(result.missingProtections.length).toBeGreaterThan(0);
+
+    const withClaim = new SidecarModelClient(clean, (payload) => ({ ...payload, nothingFound: false }) as typeof payload);
+    await expect(analyse(clean.text, [], withClaim)).resolves.toMatchObject({ nothingFound: true });
+  });
+
+  it("asks the model for the checklist and Nice to have in the same call, as required lists", async () => {
+    const client = new SidecarModelClient(clean);
+    await analyse(clean.text, [], client);
+
+    expect(client.requests).toHaveLength(1);
+    const schema = client.requests[0].schema as {
+      required: string[];
+      properties: {
+        checklist: { items: { required: string[]; properties: { check: { enum: string[] } } } };
+        niceToHave: { items: { required: string[]; properties: Record<string, unknown> } };
+        riskFlags: { items: { required: string[] } };
+      };
+    };
+    expect(schema.required).toEqual(expect.arrayContaining(["checklist", "niceToHave"]));
+    expect(schema.properties.checklist.items.properties.check.enum).toEqual([...CHECK_IDS]);
+    expect(schema.properties.niceToHave.items.required).toEqual(expect.arrayContaining(["statement", "proposedInsertion"]));
+    for (const field of ["unitId", "quote", "source"]) {
+      expect(Object.keys(schema.properties.niceToHave.items.properties)).not.toContain(field);
+    }
+    expect(schema.properties.riskFlags.items.required).toContain("check");
+    expect(Object.keys(schema.properties)).not.toContain("nothingFound");
+  });
+
+  it("cannot express a Nice to have with a Source sentence (checked by tsc)", () => {
+    const entry: NiceToHave = {
+      kind: "nice-to-have",
+      id: "NH-01",
+      protection: "portfolio-rights",
+      statement: "The agreement does not say whether the Designer may show the work.",
+      claims: [],
+      proposedInsertion: "The Designer may show the Deliverables in its portfolio.",
+      // @ts-expect-error A Nice to have has no source field.
+      source: { start: 0, end: 1, text: "F" },
+    };
+    expect("source" in entry).toBe(true);
   });
 });

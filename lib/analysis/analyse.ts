@@ -1,13 +1,26 @@
 import type { ModelClient } from "../model/model-client.ts";
+import type { CheckId, CheckOutcome, RiskFlagCheck } from "./checks.ts";
+import {
+  CHECK_IDS,
+  CHECK_OUTCOMES,
+  CITED_OUTCOMES,
+  HARM_OUTCOMES,
+  isHarmCheck,
+  PROTECTION_OUTCOMES,
+  RISK_FLAG_CHECKS,
+} from "./checks.ts";
 import { buildAnalysisRequest } from "./prompt.ts";
 import { segmentSentences } from "./segment.ts";
 import type { SentenceUnit } from "./segment.ts";
 import type {
   AnalysisResult,
+  ChecklistItem,
   Claim,
   InferenceClaim,
   MissingProtection,
   MultiplierNote,
+  NiceToHave,
+  NiceToHaveKind,
   ProtectionKind,
   ProvenanceTier,
   RedLine,
@@ -17,10 +30,10 @@ import type {
   SummarySentence,
   WorthALook,
 } from "./types.ts";
-import { PROTECTION_KINDS, PROVENANCE_TIERS, SEVERITY_BANDS } from "./types.ts";
+import { NICE_TO_HAVE_KINDS, PROTECTION_KINDS, PROVENANCE_TIERS, SEVERITY_BANDS } from "./types.ts";
 
 /** The finding types that cite a Source sentence and so go through citation validation. */
-export type CitedFindingType = "risk-flag" | "worth-a-look" | "multiplier-note" | "summary-sentence";
+export type CitedFindingType = "risk-flag" | "worth-a-look" | "multiplier-note" | "summary-sentence" | "checklist-item";
 
 export interface FailedCitation {
   /** Position of the finding in the model's response, within its own finding type's list. */
@@ -90,15 +103,34 @@ interface RawCitedFinding {
   claims: RawClaim[];
 }
 
-/** No unitId and no quote: a Missing protection that carries either is rejected as malformed. */
-interface RawMissingProtection {
-  protection: ProtectionKind;
+/**
+ * No unitId and no quote: a Missing protection or Nice to have that carries either is rejected as
+ * malformed.
+ */
+interface RawAbsence<K extends NiceToHaveKind> {
+  protection: K;
   statement: string;
   claims: RawClaim[];
   proposedInsertion: string;
 }
 
+type RawMissingProtection = RawAbsence<ProtectionKind>;
+
+/**
+ * One checklist entry as the model sends it. Strict structured output needs every field on every
+ * item, so an outcome that cites nothing sends `unitId`, `quote` and `detail` as empty strings; any
+ * other value there is rejected. The result types carry no such empty fields.
+ */
+interface RawChecklistItem {
+  check: CheckId;
+  outcome: CheckOutcome;
+  unitId: string;
+  quote: string;
+  detail: string;
+}
+
 interface RawRiskFlag extends RawCitedFinding {
+  check: RiskFlagCheck;
   severityBand: SeverityBand;
   rank: number;
   counterOffer: string;
@@ -115,7 +147,8 @@ interface RawSummarySentence {
   sources: RawSpan[];
 }
 
-type ExclusiveFindingType = Exclude<CitedFindingType, "summary-sentence">;
+/** Finding types whose sentence cannot also be cited by another of these types. */
+type ExclusiveFindingType = Exclude<CitedFindingType, "summary-sentence" | "checklist-item">;
 
 const FINDING_NAMES: Record<ExclusiveFindingType, { one: string; many: string; label: string }> = {
   "risk-flag": { one: "Risk flag", many: "Risk flags", label: "a Risk flag" },
@@ -137,22 +170,30 @@ export async function analyse(
   const rawFlags = readRiskFlags(response);
   const rawWorthALook = readUnrankedFindings(response, "worthALook", "worth-a-look");
   const rawMultiplierNotes = readUnrankedFindings(response, "multiplierNotes", "multiplier-note");
-  const rawMissingProtections = readMissingProtections(response);
+  const rawMissingProtections = readAbsences(response, "missingProtections", PROTECTION_KINDS, ABSENCE_NAMES.missingProtections);
+  const rawNiceToHave = readAbsences(response, "niceToHave", NICE_TO_HAVE_KINDS, ABSENCE_NAMES.niceToHave);
   const rawSummary = readSummary(response);
+  const rawChecklist = readChecklist(response);
 
   // Every cited finding type goes through one validation pass, so a single CitationError names every
   // failed finding of any type. Summary sentences are checked span by span, withheld ones included.
+  // Checklist entries that say something is in the text are checked too: they are claims about a
+  // sentence, so they must show it verbatim like any other (ADR-0001).
   const unitsById = new Map<string, SentenceUnit>(units.map((unit) => [unit.id, unit]));
   const failures: FailedCitation[] = [];
   const citedFlags = citeAll("risk-flag", rawFlags, documentText, unitsById, failures);
   const citedWorthALook = citeAll("worth-a-look", rawWorthALook, documentText, unitsById, failures);
   const citedMultiplierNotes = citeAll("multiplier-note", rawMultiplierNotes, documentText, unitsById, failures);
   const citedSummary = citeSummary(rawSummary, documentText, unitsById, failures);
+  const citedChecks = rawChecklist.filter((item) => CITED_OUTCOMES.includes(item.outcome));
+  const citedCheckUnits = new Map(
+    citeAll("checklist-item", citedChecks, documentText, unitsById, failures).map(({ raw, unit }) => [raw.check, unit]),
+  );
 
   if (failures.length > 0) {
     throw new CitationError(
       failures,
-      rawFlags.length + rawWorthALook.length + rawMultiplierNotes.length + rawSummary.length,
+      rawFlags.length + rawWorthALook.length + rawMultiplierNotes.length + rawSummary.length + citedChecks.length,
     );
   }
 
@@ -188,6 +229,7 @@ export async function analyse(
     rank: position + 1,
     severityBand: raw.severityBand,
     title: raw.title,
+    check: raw.check,
     claims: shown,
     source: sourceOf(documentText, unit),
     counterOffer: raw.counterOffer.trim(),
@@ -211,13 +253,192 @@ export async function analyse(
     source: sourceOf(documentText, unit),
   }));
 
+  const missingProtections = toMissingProtections(rawMissingProtections);
+  const niceToHave = toNiceToHave(rawNiceToHave);
+  failIfRaisedAsBothAbsences(missingProtections, niceToHave);
+  const checklist = toChecklist(rawChecklist, citedCheckUnits, documentText, riskFlags, missingProtections, niceToHave);
+
   return {
     summary: toShownSummary(citedSummary),
+    // Computed here from the flags that survived validation. The model is never asked whether the
+    // Document is clean, so it cannot declare it clean on its own.
+    nothingFound: riskFlags.length === 0,
+    checklist,
     riskFlags,
     worthALook,
     multiplierNotes,
-    missingProtections: toMissingProtections(rawMissingProtections),
+    missingProtections,
+    niceToHave,
   };
+}
+
+/**
+ * Nice to have keeps the model's order: it is not ranked, and there is no measured harm to sort
+ * by. Identifiers are assigned in that order. Like a Missing protection, nothing here touches the
+ * Document text, and needs-signer-facts claims are withheld.
+ */
+function toNiceToHave(raw: readonly RawAbsence<NiceToHaveKind>[]): NiceToHave[] {
+  return raw.map((entry, position) => ({
+    kind: "nice-to-have",
+    id: `NH-${String(position + 1).padStart(2, "0")}`,
+    protection: entry.protection,
+    statement: entry.statement.trim(),
+    claims: entry.claims.filter((claim): claim is InferenceClaim => claim.tier === "inference"),
+    proposedInsertion: entry.proposedInsertion.trim(),
+  }));
+}
+
+/**
+ * A kind raised both as a Missing protection and as a Nice to have is a contradictory response: the
+ * same absence cannot be harmful enough to be a Missing protection and not harmful enough at once.
+ * Picking either would override the model on that judgement, so the analysis fails as malformed.
+ */
+function failIfRaisedAsBothAbsences(missing: readonly MissingProtection[], niceToHave: readonly NiceToHave[]): void {
+  const both = niceToHave.filter((entry) => missing.some((candidate) => candidate.protection === entry.protection));
+  if (both.length === 0) return;
+  throw new AnalysisResponseError(
+    `The model's answer raises the same kind as a Missing protection and as a Nice to have: ` +
+      both.map((entry) => entry.protection).join(", ") +
+      ".",
+  );
+}
+
+/**
+ * Builds the checklist in `CHECK_IDS` order and fails the whole analysis as malformed when it
+ * contradicts the findings. The checklist is what makes a clean result credible (ADR-0008), so a
+ * checklist that says one thing while the findings say another is never shown:
+ * - a harm check marked flagged with no Risk flag of that kind, or marked not-found or bounded while
+ *   a Risk flag of that kind was returned;
+ * - a bounded check citing the same sentence as a Risk flag;
+ * - a protection check marked present while a Missing protection or Nice to have of that kind was
+ *   returned, or marked missing with neither.
+ * A Risk flag checked as "other" belongs to no check and constrains none.
+ */
+function toChecklist(
+  raw: readonly RawChecklistItem[],
+  citedUnits: ReadonlyMap<CheckId, SentenceUnit>,
+  documentText: string,
+  riskFlags: readonly RiskFlag[],
+  missingProtections: readonly MissingProtection[],
+  niceToHave: readonly NiceToHave[],
+): [ChecklistItem, ...ChecklistItem[]] {
+  const problems: string[] = [];
+  const byCheck = new Map(raw.map((item) => [item.check, item]));
+  const items = CHECK_IDS.map((check): ChecklistItem | null => {
+    // readChecklist already rejected a checklist that leaves out any check.
+    const item = byCheck.get(check)!;
+    const detail = item.detail.trim();
+    if (isHarmCheck(check)) {
+      const flags = riskFlags.filter((flag) => flag.check === check);
+      const ranks = flags.map((flag) => `#${flag.rank}`).join(", ");
+      if (item.outcome === "flagged") {
+        if (flags.length === 0) {
+          problems.push(`${check} is marked flagged, but no Risk flag is of that kind`);
+          return null;
+        }
+        const riskFlagRanks = flags.map((flag) => flag.rank) as [number, ...number[]];
+        return { kind: "checklist-item", check, outcome: "flagged", riskFlagRanks };
+      }
+      if (flags.length > 0) {
+        problems.push(`${check} is marked ${item.outcome}, but Risk flag ${ranks} is of that kind`);
+        return null;
+      }
+      if (item.outcome === "not-found") return { kind: "checklist-item", check, outcome: "not-found" };
+      const unit = citedUnits.get(check)!;
+      const sameSentence = riskFlags.find((flag) => flag.source.start === unit.start && flag.source.end === unit.end);
+      if (sameSentence) {
+        problems.push(`${check} is marked bounded, citing unit ${unit.id}, which is Risk flag #${sameSentence.rank}`);
+        return null;
+      }
+      return { kind: "checklist-item", check, outcome: "bounded", detail, source: sourceOf(documentText, unit) };
+    }
+    const absences = [...missingProtections, ...niceToHave].filter((entry) => entry.protection === check);
+    if (item.outcome === "present") {
+      if (absences.length > 0) {
+        problems.push(`${check} is marked present, but ${absences[0].id} says the Document leaves it out`);
+        return null;
+      }
+      const unit = citedUnits.get(check)!;
+      return { kind: "checklist-item", check, outcome: "present", detail, source: sourceOf(documentText, unit) };
+    }
+    if (absences.length === 0) {
+      problems.push(`${check} is marked missing, but no Missing protection or Nice to have is of that kind`);
+      return null;
+    }
+    // failIfRaisedAsBothAbsences already ruled out two absences of one kind.
+    const [absence] = absences;
+    return { kind: "checklist-item", check, outcome: "missing", absence: { kind: absence.kind, id: absence.id } };
+  });
+  if (problems.length > 0) {
+    throw new AnalysisResponseError(`The checklist contradicts the findings: ${problems.join("; ")}.`);
+  }
+  return items as [ChecklistItem, ...ChecklistItem[]];
+}
+
+const CHECKLIST_FIELDS = ["check", "outcome", "unitId", "quote", "detail"] as const;
+
+/**
+ * Reads the checklist. Any of these fails the whole analysis as malformed: no checklist list, an
+ * empty one, an unknown check, the same check twice, a check left out, an outcome that does not
+ * belong to its check's group, a cited outcome (bounded, present) with a blank unit id, quote or
+ * detail, or an uncited outcome (not-found, flagged, missing) that carries any of them. An absence
+ * carrying a quote would cite text it claims is not there, so it is never ignored.
+ */
+function readChecklist(response: unknown): RawChecklistItem[] {
+  if (typeof response !== "object" || response === null || !Array.isArray((response as Record<string, unknown>).checklist)) {
+    throw new AnalysisResponseError("The model's answer has no checklist.");
+  }
+  const list = (response as Record<string, unknown[]>).checklist;
+  if (list.length === 0) {
+    throw new AnalysisResponseError("The model's answer has an empty checklist.");
+  }
+  const seen = new Map<CheckId, number>();
+  const items = list.map((item, index) => {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) {
+      throw new AnalysisResponseError(`Checklist item #${index} in the model's answer is malformed: it is not an object.`);
+    }
+    const entry = item as Record<string, unknown>;
+    const problems: string[] = [];
+    for (const key of Object.keys(entry)) {
+      if (!(CHECKLIST_FIELDS as readonly string[]).includes(key)) problems.push(`it has an unexpected field ${JSON.stringify(key)}`);
+    }
+    const check = entry.check as CheckId;
+    const knownCheck = CHECK_IDS.includes(check);
+    if (!knownCheck) {
+      problems.push("check is not a known check");
+    } else if (seen.has(check)) {
+      problems.push(`check ${check} is a duplicate of checklist item #${seen.get(check)}`);
+    } else {
+      seen.set(check, index);
+    }
+    const outcome = entry.outcome as CheckOutcome;
+    if (!CHECK_OUTCOMES.includes(outcome)) {
+      problems.push("outcome is not a known outcome");
+    } else if (knownCheck) {
+      const allowed: readonly CheckOutcome[] = isHarmCheck(check) ? HARM_OUTCOMES : PROTECTION_OUTCOMES;
+      if (!allowed.includes(outcome)) problems.push(`outcome ${outcome} does not apply to check ${check}`);
+    }
+    for (const key of ["unitId", "quote", "detail"] as const) {
+      if (typeof entry[key] !== "string") problems.push(`${key} is not a string`);
+    }
+    if (CHECK_OUTCOMES.includes(outcome) && problems.length === 0) {
+      const cited = CITED_OUTCOMES.includes(outcome);
+      for (const key of ["unitId", "quote", "detail"] as const) {
+        const blank = (entry[key] as string).trim() === "";
+        if (cited && blank) problems.push(`${key} is blank, but a ${outcome} check cites the sentence it rests on`);
+        if (!cited && entry[key] !== "") problems.push(`it has a ${key}, but a ${outcome} check cites nothing`);
+      }
+    }
+    if (problems.length > 0) {
+      throw new AnalysisResponseError(`Checklist item #${index} in the model's answer is malformed: ${problems.join(", ")}.`);
+    }
+    return entry as unknown as RawChecklistItem;
+  });
+  const leftOut = CHECK_IDS.filter((check) => !seen.has(check));
+  if (leftOut.length > 0) {
+    throw new AnalysisResponseError(`The checklist leaves out ${leftOut.join(", ")}.`);
+  }
+  return items;
 }
 
 /**
@@ -377,8 +598,8 @@ function failIfCitedTwice(
   );
 }
 
-function citeAll<T extends RawCitedFinding>(
-  findingType: ExclusiveFindingType,
+function citeAll<T extends { unitId: string; quote: string }>(
+  findingType: Exclude<CitedFindingType, "summary-sentence">,
   findings: readonly T[],
   documentText: string,
   unitsById: ReadonlyMap<string, SentenceUnit>,
@@ -433,36 +654,47 @@ function isShown(claim: RawClaim): claim is Claim {
   return claim.tier !== "needs-signer-facts";
 }
 
-const MISSING_PROTECTION_FIELDS = ["protection", "statement", "claims", "proposedInsertion"] as const;
+const ABSENCE_FIELDS = ["protection", "statement", "claims", "proposedInsertion"] as const;
+
+const ABSENCE_NAMES = {
+  missingProtections: { one: "Missing protection", lower: "missing protection" },
+  niceToHave: { one: "Nice to have", lower: "nice to have" },
+} as const;
 
 /**
- * Reads the Missing protections. Any of these fails the whole analysis as malformed: an unknown
- * protection kind, the same kind twice, a blank statement, a missing or blank Proposed insertion, a
- * read-off claim, or any field beyond the four above. A unit id or quote on a Missing protection
- * would be a citation of text the entry claims is absent, so it is never ignored.
+ * Reads the Missing protections or the Nice to have list, which share a shape. Any of these fails
+ * the whole analysis as malformed: an unknown kind, the same kind twice in one list, a blank
+ * statement, a missing or blank Proposed insertion, a read-off claim, or any field beyond the four
+ * above. A unit id or quote on an absence would be a citation of text the entry claims is absent,
+ * so it is never ignored.
  */
-function readMissingProtections(response: unknown): RawMissingProtection[] {
-  const seen = new Map<ProtectionKind, number>();
-  return readList(response, "missingProtections").map((item, index) => {
+function readAbsences<K extends NiceToHaveKind>(
+  response: unknown,
+  key: "missingProtections" | "niceToHave",
+  kinds: readonly K[],
+  names: { one: string; lower: string },
+): RawAbsence<K>[] {
+  const seen = new Map<K, number>();
+  return readList(response, key).map((item, index) => {
     const problems: string[] = [];
     if (typeof item !== "object" || item === null || Array.isArray(item)) {
-      throw new AnalysisResponseError(`Missing protection #${index} in the model's answer is malformed: it is not an object.`);
+      throw new AnalysisResponseError(`${names.one} #${index} in the model's answer is malformed: it is not an object.`);
     }
     const entry = item as Record<string, unknown>;
-    for (const key of Object.keys(entry)) {
-      if (!(MISSING_PROTECTION_FIELDS as readonly string[]).includes(key)) {
+    for (const field of Object.keys(entry)) {
+      if (!(ABSENCE_FIELDS as readonly string[]).includes(field)) {
         problems.push(
-          key === "unitId" || key === "quote"
-            ? `it has a ${key}, but a missing protection cites nothing`
-            : `it has an unexpected field ${JSON.stringify(key)}`,
+          field === "unitId" || field === "quote" || field === "source"
+            ? `it has a ${field}, but a ${names.lower} cites nothing`
+            : `it has an unexpected field ${JSON.stringify(field)}`,
         );
       }
     }
-    if (!PROTECTION_KINDS.includes(entry.protection as ProtectionKind)) {
+    if (!kinds.includes(entry.protection as K)) {
       problems.push("protection is not a known kind");
     } else {
-      const kind = entry.protection as ProtectionKind;
-      if (seen.has(kind)) problems.push(`protection ${kind} is a duplicate of missing protection #${seen.get(kind)}`);
+      const kind = entry.protection as K;
+      if (seen.has(kind)) problems.push(`protection ${kind} is a duplicate of ${names.lower} #${seen.get(kind)}`);
       else seen.set(kind, index);
     }
     if (typeof entry.statement !== "string" || entry.statement.trim() === "") problems.push("statement is blank");
@@ -482,13 +714,16 @@ function readMissingProtections(response: unknown): RawMissingProtection[] {
       });
     }
     if (problems.length > 0) {
-      throw new AnalysisResponseError(`Missing protection #${index} in the model's answer is malformed: ${problems.join(", ")}.`);
+      throw new AnalysisResponseError(`${names.one} #${index} in the model's answer is malformed: ${problems.join(", ")}.`);
     }
-    return entry as unknown as RawMissingProtection;
+    return entry as unknown as RawAbsence<K>;
   });
 }
 
-function readList(response: unknown, key: "riskFlags" | "worthALook" | "multiplierNotes" | "missingProtections"): unknown[] {
+function readList(
+  response: unknown,
+  key: "riskFlags" | "worthALook" | "multiplierNotes" | "missingProtections" | "niceToHave",
+): unknown[] {
   if (typeof response !== "object" || response === null || !Array.isArray((response as Record<string, unknown>)[key])) {
     throw new AnalysisResponseError(`The model's answer has no ${key} list.`);
   }
@@ -519,6 +754,7 @@ function readRiskFlags(response: unknown): RawRiskFlag[] {
     const problems = citedFindingProblems(flag);
     if (!SEVERITY_BANDS.includes(flag?.severityBand as SeverityBand)) problems.push("severityBand is not high or medium");
     if (typeof flag?.rank !== "number" || !Number.isFinite(flag.rank)) problems.push("rank is not a number");
+    if (!RISK_FLAG_CHECKS.includes(flag?.check as RiskFlagCheck)) problems.push("check is not a known check");
     // A Risk flag without its Counter-offer is a failed generation, never a flag shown without one.
     if (typeof flag?.counterOffer !== "string") {
       problems.push("counterOffer is missing");

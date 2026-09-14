@@ -67,6 +67,33 @@ try {
     }
     console.log(`   Proposed insertion (not in the Document): ${protection.proposedInsertion}\n`);
   }
+  console.log(`${result.niceToHave.length} Nice to have, their own list, citing nothing\n`);
+  for (const entry of result.niceToHave) {
+    console.log(`${entry.id} [${entry.protection}] ${entry.statement}`);
+    for (const claim of entry.claims) {
+      console.log(`   (${claim.tier}) ${claim.text}`);
+    }
+    console.log(`   Proposed insertion (not in the Document): ${entry.proposedInsertion}\n`);
+  }
+  console.log(`Checklist: ${result.checklist.length} checks. Nothing found: ${result.nothingFound ? "yes" : "no"}\n`);
+  for (const item of result.checklist) {
+    switch (item.outcome) {
+      case "not-found":
+        console.log(`- ${item.check}: not found`);
+        break;
+      case "flagged":
+        console.log(`- ${item.check}: flagged, Risk flag ${item.riskFlagRanks.map((rank) => `#${rank}`).join(", ")}`);
+        break;
+      case "missing":
+        console.log(`- ${item.check}: missing, see ${item.absence.id}`);
+        break;
+      case "bounded":
+      case "present":
+        console.log(`- ${item.check}: ${item.outcome}, ${item.detail}`);
+        console.log(`   Source [${item.source.start}, ${item.source.end}): "${item.source.text}"`);
+        break;
+    }
+  }
   process.exit(0);
 } catch (error) {
   if (error instanceof CitationError) {

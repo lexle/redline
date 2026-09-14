@@ -9,13 +9,14 @@ product surface the Signer reads, not a debug view.
 **Blocked by:** 09, 10, 11. Fair agreements routinely contain capped liability and arbitration clauses.
 Until those go to Worth a look and Multiplier notes, a clean Document cannot come back clean.
 
-**Status:** ready-for-agent
+**Status:** done (2026-09-14)
 
-- [ ] Zero Risk flags produces an explicit "nothing found" result, not an empty list that looks like
-      a failure.
-- [ ] Every analysis returns the checklist of what was examined, in language a Signer can read.
-- [ ] Nice to have is its own finding type, shaped like a Missing protection: no span, and a Proposed
+- [x] Zero Risk flags produces an explicit "nothing found" result, not an empty list that looks like
+      a failure. (`nothingFound` is computed from the Risk flags, never supplied by the model.)
+- [x] Every analysis returns the checklist of what was examined, in language a Signer can read.
+      (Checks that say a protection is present, or a clause is bounded, cite their sentence.)
+- [x] Nice to have is its own finding type, shaped like a Missing protection: no span, and a Proposed
       insertion marked as not in the Document. It is collapsed by default.
-- [ ] Test at the analysis seam, synthetic client: a response with no dangerous clauses yields zero
+- [x] Test at the analysis seam, synthetic client: a response with no dangerous clauses yields zero
       Risk flags, a populated checklist and any Nice to have items.
-- [ ] The clean-document corpus is run against the real model in ticket 16, not here.
+- [x] The clean-document corpus is run against the real model in ticket 16, not here.

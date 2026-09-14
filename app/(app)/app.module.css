@@ -499,7 +499,74 @@
   background: rgb(255 255 255 / 0.03);
 }
 
+/* Clean result: a real result, stated plainly. No magenta: there is no flag to show. */
+.clean {
+  padding: 14px 16px 16px;
+  border: 1px solid rgb(255 255 255 / 0.14);
+}
+
+.cleanHeading {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.cleanText {
+  margin: 8px 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+/* Checklist: what Redline looked for, visible and legible, not a debug view. */
+.checklist {
+  margin-top: 32px;
+}
+
+.checkList {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid rgb(255 255 255 / 0.12);
+}
+
+.checkItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 4px 16px;
+  padding-block: 10px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.12);
+}
+
+.checkLabel {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.checkOutcome {
+  margin: 0;
+  color: var(--desk-ink-2);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+
+.checkOutcome[data-outcome="flagged"],
+.checkOutcome[data-outcome="missing"] {
+  color: var(--desk-ink);
+}
+
+.checkDetail {
+  display: block;
+  color: var(--desk-ink);
+}
+
 @media (max-width: 760px) {
+  .checkItem {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .workspace {
     grid-template-columns: minmax(0, 1fr);
     gap: 32px;

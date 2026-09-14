@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { JsonCompletionRequest, ModelClient } from "../../lib/model/model-client";
 import { segmentSentences } from "../../lib/analysis/segment";
+import { CHECK_IDS, isHarmCheck } from "../../lib/analysis/checks";
+import type { CheckId, RiskFlagCheck } from "../../lib/analysis/checks";
 
 export interface PlantedClause {
   id: string;
@@ -31,7 +33,19 @@ export interface Sidecar {
   presentProtections?: PresentProtection[];
   /** Absent from a fixture that addresses every protection. */
   expectedMissingProtections?: ExpectedMissingProtection[];
+  /** Minor absences the fixture leaves out, keyed by Nice to have kind. */
+  expectedNiceToHave?: ExpectedMissingProtection[];
 }
+
+/** The harm check each planted Risk flag's clause type falls under. */
+export const CHECK_FOR_CLAUSE_TYPE: Record<string, RiskFlagCheck> = {
+  "liability-for-completion-consequential-costs": "uncapped-liability",
+  "uncapped-indemnification": "uncapped-liability",
+  "personal-guarantee": "personal-guarantee",
+  "non-compete-non-solicit": "non-compete",
+  "overbroad-ip-assignment": "ip-overreach",
+  "auto-renewal-with-hard-cancellation": "lock-in",
+};
 
 export interface Fixture {
   text: string;
@@ -58,6 +72,7 @@ export interface ModelRiskFlag {
   unitId: string;
   quote: string;
   title: string;
+  check: string;
   claims: ModelClaim[];
   severityBand: "high" | "medium";
   rank: number;
@@ -100,12 +115,25 @@ export interface ModelSummarySentence {
   sources: ModelSpan[];
 }
 
+/** Shaped like a Missing protection; never carries a unit id, quote or source from a correct model. */
+export type ModelNiceToHave = ModelMissingProtection & { source?: unknown };
+
+export interface ModelChecklistItem {
+  check: string;
+  outcome: string;
+  unitId: string;
+  quote: string;
+  detail: string;
+}
+
 export interface ModelPayload {
   summary: ModelSummarySentence[];
   riskFlags: ModelRiskFlag[];
   worthALook: ModelWorthALook[];
   multiplierNotes: ModelMultiplierNote[];
   missingProtections: ModelMissingProtection[];
+  niceToHave: ModelNiceToHave[];
+  checklist: ModelChecklistItem[];
 }
 
 export interface SidecarClientOptions {
@@ -136,6 +164,18 @@ export interface SidecarClientOptions {
   summaryWithoutSpans?: number[];
   /** Planned summary sentences (by position) tagged needs-signer-facts instead of read-off. */
   signerFactsSummary?: number[];
+  /** Nice to have Proposed insertion text to send instead of the derived one, keyed by kind. */
+  niceToHaveInsertions?: Record<string, string>;
+  /** Expected Missing protection kinds also sent as a Nice to have of the same kind. */
+  alsoNiceToHave?: string[];
+  /**
+   * Checks sent with the outcome that contradicts the findings: a flagged harm check as not-found
+   * (or a not-found one as flagged), a missing protection check as present, citing the Document's
+   * first sentence (or a present one as missing).
+   */
+  contradictChecklist?: string[];
+  /** Quote to send instead of the unit's exact text for a checklist item that cites, keyed by check. */
+  checklistQuotes?: Record<string, string>;
   /** Corrupt or reshape the payload before it is returned. */
   tamper?: (payload: ModelPayload) => ModelPayload;
 }
@@ -195,6 +235,21 @@ export function proposedInsertionFor(expected: ExpectedMissingProtection): strin
   return `${expected.id}: the Client shall provide for ${expected.id.replace(/-/g, " ")} within [number] days.`;
 }
 
+/** The statement the stub gives each expected Nice to have, built from its kind. */
+export function niceToHaveStatementFor(expected: ExpectedMissingProtection): string {
+  return `The Document does not include ${expected.id.replace(/-/g, " ")}.`;
+}
+
+/** The Proposed insertion the stub gives each expected Nice to have, built from its kind. */
+export function niceToHaveInsertionFor(expected: ExpectedMissingProtection): string {
+  return `${expected.id}: the Designer may [describe ${expected.id.replace(/-/g, " ")}].`;
+}
+
+/** The detail the stub gives a checklist item that cites a sentence, built from its check. */
+export function checklistDetailFor(check: string): string {
+  return `The Document states ${check.replace(/-/g, " ")}.`;
+}
+
 /**
  * A synthetic ModelClient that answers the way a correct model would for a fixture: one Risk flag
  * per planted risk-flag sentence, one Worth a look entry per planted worth-a-look sentence and one
@@ -221,10 +276,23 @@ export class SidecarModelClient implements ModelClient {
       summaryQuote,
       summaryWithoutSpans = [],
       signerFactsSummary = [],
+      niceToHaveInsertions = {},
+      alsoNiceToHave = [],
+      contradictChecklist = [],
+      checklistQuotes = {},
       tamper,
     } = typeof options === "function" ? { tamper: options } : options;
+    const expectedNiceToHave = fixture.sidecar.expectedNiceToHave ?? [];
+    for (const kind of Object.keys(niceToHaveInsertions)) {
+      if (!expectedNiceToHave.some((expected) => expected.id === kind)) {
+        throw new Error(`Options name ${kind}, which is not an expected nice to have in ${fixture.sidecar.document}.`);
+      }
+    }
+    for (const check of contradictChecklist) {
+      if (!CHECK_IDS.includes(check as CheckId)) throw new Error(`Options name ${check}, which is not a check.`);
+    }
     const expectedMissing = fixture.sidecar.expectedMissingProtections ?? [];
-    for (const kind of [...Object.keys(proposedInsertions), ...duplicateProtections, ...attachUnitIdTo]) {
+    for (const kind of [...Object.keys(proposedInsertions), ...duplicateProtections, ...attachUnitIdTo, ...alsoNiceToHave]) {
       if (!expectedMissing.some((expected) => expected.id === kind)) {
         throw new Error(`Options name ${kind}, which is not an expected missing protection in ${fixture.sidecar.document}.`);
       }
@@ -268,10 +336,13 @@ export class SidecarModelClient implements ModelClient {
         if (clause.severityBand === null || clause.expectedRank === null) {
           throw new Error(`Planted risk flag ${clause.id} has no severity band or rank.`);
         }
+        const check = CHECK_FOR_CLAUSE_TYPE[clause.clauseType];
+        if (!check) throw new Error(`Planted risk flag ${clause.id} has a clause type with no harm check.`);
         const flag: ModelRiskFlag = {
           unitId: unit.id,
           quote: unit.text,
           title: clause.id,
+          check,
           claims: [readOffClaimFor(clause), inferenceClaimFor(clause), ...(extraClaims[clause.id] ?? [])],
           severityBand: clause.severityBand,
           rank: clause.expectedRank,
@@ -344,9 +415,51 @@ export class SidecarModelClient implements ModelClient {
             return { unitId: unit.id, quote: tampered ? summaryQuote.quote : unit.text };
           }),
     }));
+    const niceToHave = expectedNiceToHave.map(
+      (expected): ModelNiceToHave => ({
+        protection: expected.id,
+        statement: niceToHaveStatementFor(expected),
+        claims: [inferenceClaimForAbsence(expected)],
+        proposedInsertion: niceToHaveInsertions[expected.id] ?? niceToHaveInsertionFor(expected),
+      }),
+    );
+    for (const kind of alsoNiceToHave) {
+      const expected = expectedMissing.find((entry) => entry.id === kind)!;
+      niceToHave.push({
+        protection: kind,
+        statement: niceToHaveStatementFor(expected),
+        claims: [],
+        proposedInsertion: niceToHaveInsertionFor(expected),
+      });
+    }
+
+    const sentFlags = onlyMultiplierNotes ? [] : riskFlags;
+    // The checklist a correct model would send for these findings: a harm check is flagged exactly
+    // when a sent flag names it, and a protection check is missing exactly when a sent absence has
+    // its kind. A present protection cites the sidecar sentence that states it.
+    const absentKinds = new Set([...missingProtections, ...niceToHave].map((entry) => entry.protection));
+    const uncited = { unitId: "", quote: "", detail: "" };
+    const checklist = CHECK_IDS.map((check): ModelChecklistItem => {
+      const contradict = contradictChecklist.includes(check);
+      if (isHarmCheck(check)) {
+        const flagged = sentFlags.some((flag) => flag.check === check);
+        return { check, outcome: flagged !== contradict ? "flagged" : "not-found", ...uncited };
+      }
+      if (absentKinds.has(check) !== contradict) return { check, outcome: "missing", ...uncited };
+      const present = fixture.sidecar.presentProtections?.find((entry) => entry.id === check);
+      const unit = present ? units.find((candidate) => candidate.text === present.sentence) : contradict ? units[0] : undefined;
+      if (!unit) throw new Error(`${fixture.sidecar.document} has no single-unit sentence stating ${check}.`);
+      return { check, outcome: "present", unitId: unit.id, quote: checklistQuotes[check] ?? unit.text, detail: checklistDetailFor(check) };
+    });
+    for (const check of Object.keys(checklistQuotes)) {
+      if (!checklist.some((item) => item.check === check && item.outcome === "present")) {
+        throw new Error(`Options name ${check}, which is not a checklist item that cites a sentence.`);
+      }
+    }
+
     const payload: ModelPayload = onlyMultiplierNotes
-      ? { summary, riskFlags: [], worthALook: [], multiplierNotes, missingProtections }
-      : { summary, riskFlags, worthALook, multiplierNotes, missingProtections };
+      ? { summary, riskFlags: [], worthALook: [], multiplierNotes, missingProtections, niceToHave, checklist }
+      : { summary, riskFlags, worthALook, multiplierNotes, missingProtections, niceToHave, checklist };
     this.payload = tamper ? tamper(structuredClone(payload)) : payload;
   }
 

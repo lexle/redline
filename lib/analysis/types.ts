@@ -1,9 +1,10 @@
 /**
  * What `analyse` returns. Cited finding types carry a required `source`; there is no way to build
- * a Risk flag, a Worth a look or a Multiplier note without one. Absence types (Missing protection, and
- * later Nice to have) are their own types beside `RiskFlag` with no `source` field at all, never an
+ * a Risk flag, a Worth a look or a Multiplier note without one. Absence types (Missing protection and
+ * Nice to have) are their own types beside `RiskFlag` with no `source` field at all, never an
  * optional citation on a cited type.
  */
+import type { CheckId, HarmCheck, RiskFlagCheck } from "./checks.ts";
 
 /** The exact sentence a finding came from: `documentText.slice(start, end) === text`. */
 export interface SourceSentence {
@@ -42,6 +43,8 @@ export interface RiskFlag {
   readonly rank: number;
   readonly severityBand: SeverityBand;
   readonly title: string;
+  /** Which harm check the flag belongs to, or "other" for a flag outside the checklist's set. */
+  readonly check: RiskFlagCheck;
   /** What the flag says about its Source sentence, in the model's order. Never empty. */
   readonly claims: readonly [Claim, ...Claim[]];
   readonly source: SourceSentence;
@@ -85,7 +88,8 @@ export interface MultiplierNote {
  * The protections Redline checks a Document for (PRD §5). A closed set: the model must pick one of
  * these, and there is no "other". Every Missing protection then belongs to a list the product can
  * name in full, and an absence outside the list is not a harm the research measured. Minor
- * absences belong to Nice to have (ADR-0008), not here.
+ * absences belong to Nice to have (ADR-0008), not here. These kinds are also the checklist's
+ * protection checks (see `checks.ts`).
  */
 export type ProtectionKind =
   | "payment-timing"
@@ -151,6 +155,101 @@ export interface SummarySentence {
   readonly sources: readonly [SourceSentence, ...SourceSentence[]];
 }
 
+/**
+ * What a Nice to have can be about: any Missing protection kind the model judged not harmful enough
+ * to be a Missing protection in this Document, or one of a few minor protections that are never
+ * Missing protections. A closed set, like `ProtectionKind`.
+ */
+export type NiceToHaveKind =
+  | ProtectionKind
+  | "portfolio-rights"
+  | "attribution"
+  | "expense-reimbursement"
+  | "feedback-deadlines"
+  | "confidentiality";
+
+export const NICE_TO_HAVE_KINDS: readonly NiceToHaveKind[] = [
+  ...PROTECTION_KINDS,
+  "portfolio-rights",
+  "attribution",
+  "expense-reimbursement",
+  "feedback-deadlines",
+  "confidentiality",
+];
+
+/**
+ * A protection the Document omits that is not harmful enough to be a Missing protection (ADR-0008).
+ * Shaped like a Missing protection: no `source` field at all, a flat statement that the Document
+ * does not include it, inference-only claims, and a required Proposed insertion.
+ */
+export interface NiceToHave {
+  readonly kind: "nice-to-have";
+  /** `NH-01`, `NH-02`, ... assigned by `analyse` in the model's order. */
+  readonly id: string;
+  readonly protection: NiceToHaveKind;
+  /** A plain statement that the Document does not include it. Never blank. */
+  readonly statement: string;
+  /** How the absence would likely play out. May be empty. */
+  readonly claims: readonly InferenceClaim[];
+  /** Drafted clause language, never in the Document. Required and never blank. */
+  readonly proposedInsertion: string;
+}
+
+/** Which absence finding a missing protection check points at. */
+export interface AbsenceReference {
+  readonly kind: "missing-protection" | "nice-to-have";
+  /** `MP-01` or `NH-01`: the id of that finding in the same result. */
+  readonly id: string;
+}
+
+/** A harm check that found no clause of its kind. Claims an absence, so it cites nothing. */
+export interface NotFoundCheck {
+  readonly kind: "checklist-item";
+  readonly check: HarmCheck;
+  readonly outcome: "not-found";
+}
+
+/** A harm check that found a clause of its kind with a cap or an exit. Cites that sentence. */
+export interface BoundedCheck {
+  readonly kind: "checklist-item";
+  readonly check: HarmCheck;
+  readonly outcome: "bounded";
+  /** The cap or exit, read off the Source sentence, e.g. "Liability is capped at the total fees". */
+  readonly detail: string;
+  readonly source: SourceSentence;
+}
+
+/** A harm check whose kind of clause is a Risk flag. The flags carry the citations. */
+export interface FlaggedCheck {
+  readonly kind: "checklist-item";
+  readonly check: HarmCheck;
+  readonly outcome: "flagged";
+  /** The ranks of the Risk flags of this kind in the same result. Never empty. */
+  readonly riskFlagRanks: readonly [number, ...number[]];
+}
+
+/** A protection the Document states. Cites the sentence that states it. */
+export interface PresentCheck {
+  readonly kind: "checklist-item";
+  readonly check: ProtectionKind;
+  readonly outcome: "present";
+  /** What the sentence says about it, e.g. "Invoices are due within fifteen days". */
+  readonly detail: string;
+  readonly source: SourceSentence;
+}
+
+/** A protection the Document leaves out. The Missing protection or Nice to have carries it. */
+export interface MissingCheck {
+  readonly kind: "checklist-item";
+  readonly check: ProtectionKind;
+  readonly outcome: "missing";
+  readonly absence: AbsenceReference;
+}
+
+export type ChecklistItem = NotFoundCheck | BoundedCheck | FlaggedCheck | PresentCheck | MissingCheck;
+
+export type { CheckId };
+
 export interface RedLine {
   readonly text: string;
 }
@@ -158,8 +257,18 @@ export interface RedLine {
 export interface AnalysisResult {
   /** What the Document is and what it commits the Signer to, in the model's order. Never empty. */
   readonly summary: readonly [SummarySentence, ...SummarySentence[]];
+  /**
+   * True when the analysis returned zero Risk flags: the "nothing found" state (ADR-0008). Computed
+   * by `analyse` from the Risk flags, never read from the model. It says nothing about Missing
+   * protections, which are shown in their own list either way.
+   */
+  readonly nothingFound: boolean;
+  /** What was examined: every check exactly once, in `CHECK_IDS` order. Never empty. */
+  readonly checklist: readonly [ChecklistItem, ...ChecklistItem[]];
   /** Their own list, never merged into the Risk flag ranking (ADR-0005). */
   readonly missingProtections: readonly MissingProtection[];
+  /** Minor absences, quieter than Missing protections. Never the same kind as a Missing protection. */
+  readonly niceToHave: readonly NiceToHave[];
   readonly riskFlags: readonly RiskFlag[];
   /** In the order the sentences appear in the Document. Not ranked. */
   readonly worthALook: readonly WorthALook[];
