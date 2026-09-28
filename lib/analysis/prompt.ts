@@ -277,6 +277,7 @@ Rank the flags by probable cost to this Signer: how likely the clause is to bite
 
 Citing:
 - The document is given as numbered sentence units, each shown as its id and its text as a JSON string.
+- Every character outside plain ASCII in a unit is written as a \\uXXXX escape, such as \\u201c for a curly opening quote or \\u00a0 for a non-breaking space. Copy the escape into "quote" exactly as shown. Never replace it with a plain quote, space or hyphen that looks similar.
 - Each risk flag, worth a look entry and multiplier note cites exactly one unit id, and each summary sentence cites one or more. Every "quote" must be its unit's text exactly as given, with every space and punctuation mark unchanged (decode the JSON escapes).
 - Never cite text that is not a unit. Never merge, trim or paraphrase a unit in "quote".
 - Copy a quote, never retype it from memory: long units with names, addresses and defined terms are where words get doubled or dropped. Any difference, even one repeated word, rejects the whole answer.

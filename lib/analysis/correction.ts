@@ -1,5 +1,6 @@
 import type { JsonCompletionRequest, ModelClient } from "../model/model-client.ts";
 import { CitationError } from "./citation.ts";
+import { asciiJsonString } from "./parts.ts";
 import type { SentenceUnit } from "./segment.ts";
 
 /**
@@ -38,7 +39,7 @@ function correctionNote(error: Error, unitsById: ReadonlyMap<string, SentenceUni
       ? error.failures.map((failure) => {
           const unit = unitsById.get(failure.unitId);
           return unit
-            ? `- ${failure.findingType} #${failure.index} quoted unit ${failure.unitId} inexactly. Its exact text is ${JSON.stringify(unit.text)}.`
+            ? `- ${failure.findingType} #${failure.index} quoted unit ${failure.unitId} inexactly. Its exact text is ${asciiJsonString(unit.text)}.`
             : `- ${failure.findingType} #${failure.index} cited unit ${JSON.stringify(failure.unitId)}, which is not one of the units shown.`;
         })
       : [`- ${error.message}`];

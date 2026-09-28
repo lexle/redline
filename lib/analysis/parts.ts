@@ -35,7 +35,17 @@ export interface DocumentPart {
 
 /** The line the prompt shows for a unit. Part sizes are measured on these lines. */
 export function unitLine(unit: SentenceUnit): string {
-  return `[${unit.id}] ${JSON.stringify(unit.text)}`;
+  return `[${unit.id}] ${asciiJsonString(unit.text)}`;
+}
+
+/**
+ * `text` as a JSON string with every character outside printable ASCII written as a `\uXXXX`
+ * escape. Models retype curly quotes, non-breaking spaces, soft hyphens and ligatures as their
+ * plain look-alikes, which fails the verbatim check; an escape is plain ASCII to copy, and
+ * decoding the model's JSON turns it back into exactly the stored character.
+ */
+export function asciiJsonString(text: string): string {
+  return JSON.stringify(text).replace(/[^\x20-\x7e]/g, (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
 
 /**
