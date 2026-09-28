@@ -3,7 +3,7 @@ import { createOpenRouterClient } from "../../../lib/model/openrouter-client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 export function POST(request: Request): Promise<Response> {
   return handleAnalyseRequest(request, () => createOpenRouterClient());

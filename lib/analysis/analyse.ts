@@ -37,6 +37,7 @@ import { NICE_TO_HAVE_KINDS, PROTECTION_KINDS, PROVENANCE_TIERS, SEVERITY_BANDS 
 
 import { CitationError, resolveSpan, sourceOf } from "./citation.ts";
 import type { CitedFindingType, FailedCitation } from "./citation.ts";
+import { askWithOneCorrection } from "./correction.ts";
 import { runEveryPart } from "./run-parts.ts";
 
 export { CitationError } from "./citation.ts";
@@ -164,14 +165,20 @@ export async function analyse(
   const crossable: CrossedRedLine[] = redLines.map((line, index) => ({ id: redLineId(index), text: line.text }));
   const analysed = await runEveryPart(parts, async (part) => {
     const position = parts.length > 1 ? { index: part.index, count: parts.length } : undefined;
-    const response = await modelClient.completeJson(buildAnalysisRequest(part.units, redLines, position));
-    const analysis = readPart(response, part, documentText, unitsById, crossable);
-    // Each part must hold together on its own before it is merged: a part whose checklist
-    // contradicts its own findings is as malformed as a whole-Document answer that does.
-    if (parts.length > 1) assemble(documentText, [analysis], crossable);
-    return analysis;
+    const request = buildAnalysisRequest(part.units, redLines, position);
+    return askWithOneCorrection(modelClient, request, unitsById, isRejectedAnswer, (response) => {
+      const analysis = readPart(response, part, documentText, unitsById, crossable);
+      // Each part must hold together on its own before it is merged: a part whose checklist
+      // contradicts its own findings is as malformed as a whole-Document answer that does.
+      if (parts.length > 1) assemble(documentText, [analysis], crossable);
+      return analysis;
+    });
   });
   return assemble(documentText, analysed, crossable);
+}
+
+function isRejectedAnswer(error: unknown): boolean {
+  return error instanceof CitationError || error instanceof AnalysisResponseError;
 }
 
 /**

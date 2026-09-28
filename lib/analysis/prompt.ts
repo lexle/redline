@@ -279,6 +279,11 @@ Citing:
 - The document is given as numbered sentence units, each shown as its id and its text as a JSON string.
 - Each risk flag, worth a look entry and multiplier note cites exactly one unit id, and each summary sentence cites one or more. Every "quote" must be its unit's text exactly as given, with every space and punctuation mark unchanged (decode the JSON escapes).
 - Never cite text that is not a unit. Never merge, trim or paraphrase a unit in "quote".
+- Copy a quote, never retype it from memory: long units with names, addresses and defined terms are where words get doubled or dropped. Any difference, even one repeated word, rejects the whole answer.
+
+Before you answer, check:
+- Every "quote" is identical to its unit's text.
+- No unit id appears in more than one of riskFlags, worthALook and multiplierNotes. A unilateral amendment, arbitration or class-action waiver sentence appears in multiplierNotes and nowhere else, however harmful it looks.
 
 Claims:
 - Explain each risk flag, worth a look entry and multiplier note as a list of short claims, one sentence each, and tag every claim with what it rests on:

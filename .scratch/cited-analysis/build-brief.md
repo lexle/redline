@@ -50,7 +50,9 @@ think you need something else, don't add it; write the code or report back.
   Resolution maps the id to offsets, and validation requires
   `documentText.slice(start, end) === quote` exactly. Unknown id or any mismatch throws a
   `CitationError` naming every failed finding. No normalisation, no fuzzy match, no retry that hides
-  a failure, no dropping. Every cited finding in the result carries `{ start, end, text }`.
+  a failure, no dropping. The one retry allowed (`lib/analysis/correction.ts`) throws the rejected
+  answer away whole, logs why, asks once more with the reasons, and runs the new answer through
+  every check; a second rejection is thrown. Every cited finding in the result carries `{ start, end, text }`.
 - **Result type.** Cited finding types (Risk flag, Worth a look, Multiplier note, summary sentence)
   have a required `source` field. Absence types (Missing protection, Nice to have) have no
   `source` field at all. Use separate types, never an optional citation.
