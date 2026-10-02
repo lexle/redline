@@ -11,7 +11,7 @@ Read `PRD.md` before building. If it does not exist yet, ask me for it.
 - Next.js, scaffolded at the repo root. npm.
 - Supabase for auth and database. Deployed on Vercel.
 - The model is called through OpenRouter — never a provider SDK directly.
-- Model pinned via `OPENROUTER_MODEL`, default `anthropic/claude-sonnet-4.5`.
+- Model pinned via `OPENROUTER_MODEL`, default `anthropic/claude-sonnet-5.5`.
   Never hardcode a model name at a call site.
 
 ## Rules that outrank convenience

@@ -26,7 +26,7 @@ function completion(content: string, finishReason = "stop") {
 }
 
 describe("OpenRouter client", () => {
-  it("sends the model from the environment, the Fireworks pin, low reasoning and a strict JSON schema", async () => {
+  it("sends the model from the environment, open provider routing, low reasoning and the schema in the system prompt", async () => {
     const { calls, fetch } = recordingFetch(() => completion('{"riskFlags":[]}'));
     const client = createOpenRouterClient({ env, fetch });
 
@@ -38,16 +38,22 @@ describe("OpenRouter client", () => {
     expect((calls[0].init.headers as Record<string, string>).Authorization).toBe("Bearer test-key");
     const body = JSON.parse(calls[0].init.body as string);
     expect(body.model).toBe("vendor/model-from-env");
-    expect(body.provider).toEqual({ order: ["fireworks"], allow_fallbacks: false, require_parameters: true });
+    expect(body.provider).toEqual({ require_parameters: true });
     expect(body.reasoning).toEqual({ effort: "low" });
-    expect(body.response_format).toEqual({
-      type: "json_schema",
-      json_schema: { name: "document_analysis", strict: true, schema: request.schema },
-    });
-    expect(body.messages).toEqual([
-      { role: "system", content: "system words" },
-      { role: "user", content: "user words" },
-    ]);
+    expect(body.max_tokens).toBeGreaterThan(0);
+    // Anthropic's providers refuse the analysis schema as a grammar, so it travels in the prompt.
+    expect(body.response_format).toBeUndefined();
+    expect(body.messages).toHaveLength(2);
+    expect(body.messages[0].role).toBe("system");
+    expect(body.messages[0].content.startsWith("system words\n\n")).toBe(true);
+    expect(body.messages[0].content).toContain(JSON.stringify(request.schema));
+    expect(body.messages[1]).toEqual({ role: "user", content: "user words" });
+  });
+
+  it("reads JSON the model wrapped in a Markdown code fence", async () => {
+    const { fetch } = recordingFetch(() => completion('```json\n{"riskFlags":[{"unitId":"u3"}]}\n```'));
+    const result = await createOpenRouterClient({ env, fetch }).completeJson(request);
+    expect(result).toEqual({ riskFlags: [{ unitId: "u3" }] });
   });
 
   it("returns the parsed JSON from the message content", async () => {

@@ -125,7 +125,7 @@ describe("answerQuestion", () => {
     await expect(ask(STOP_EARLY, { tamper })).rejects.toBeInstanceOf(CitationError);
   });
 
-  it("sends the question and the answer schema, and the OpenRouter client asks for it as a strict json_schema", async () => {
+  it("sends the question and the answer schema, and the OpenRouter client puts that schema in the system prompt", async () => {
     const client = new QuestionModelClient(adhesion, script);
     await answerQuestion(adhesion.text, CALIFORNIA, client);
     expect(client.requests).toHaveLength(1);
@@ -144,7 +144,8 @@ describe("answerQuestion", () => {
     });
     expect(await answerQuestion(adhesion.text, PAY_DAY, openRouter)).toEqual({ outcome: "not-in-document" });
     const body = bodies[0] as { response_format: unknown; messages: { content: string }[] };
-    expect(body.response_format).toEqual({ type: "json_schema", json_schema: { name: ANSWER_SCHEMA_NAME, strict: true, schema: ANSWER_SCHEMA } });
+    expect(body.response_format).toBeUndefined();
+    expect(body.messages[0].content).toContain(JSON.stringify(ANSWER_SCHEMA));
     expect(body.messages[1].content).toContain(JSON.stringify(PAY_DAY));
   });
 

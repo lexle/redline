@@ -16,10 +16,12 @@ your ticket file, and every ADR your ticket names in `docs/adr/`.
 1. **Model.** Call whatever `OPENROUTER_MODEL` says, through OpenRouter's OpenAI-compatible endpoint
    (`https://openrouter.ai/api/v1/chat/completions`) with `OPENROUTER_API_KEY`, using `fetch`. No
    provider SDK. Every request sets
-   `provider: { order: ["fireworks"], allow_fallbacks: false, require_parameters: true }`,
-   `reasoning: { effort: "low" }`, and asks for structured JSON output
-   (`response_format: { type: "json_schema", json_schema: { name, strict: true, schema } }`) on every
-   analysis and answer call. Never write a model id into code, tests or fixtures. If
+   `provider: { require_parameters: true }`, `reasoning: { effort: "low" }` and `max_tokens`, and puts
+   the JSON schema in the system prompt rather than `response_format` (changed 2026-10-02, when the
+   owner moved to Claude Sonnet 5.5: Anthropic's providers refuse the analysis schema as a grammar,
+   and the Fireworks pin used for GLM answered 429 on about half the calls). Every answer is still
+   checked field by field and quote by quote, so the schema constrains nothing the checks do not.
+   Never write a model id into code, tests or fixtures. If
    `OPENROUTER_MODEL` or `OPENROUTER_API_KEY` is unset, the production client throws a clear error.
    The model id may appear only in `.env.example`.
 2. **Supabase.** No project exists. Build sign-in, the library and red lines against

@@ -1,9 +1,9 @@
 import type { DocumentPart } from "./parts.ts";
 
 /**
- * How many parts of a long Document are sent to the model at once. Two, not all of them: the calls
- * go to one provider (Fireworks, pinned with no fallback), whose rate limit a burst of parallel
- * requests would hit, and a rate-limit error fails the whole result. Two still roughly halves the
+ * How many parts of a long Document are sent to the model at once. Two, not all of them: a burst of
+ * parallel requests invites rate limits even with OpenRouter's provider fallbacks, and a
+ * rate-limit error fails the whole result. Two still roughly halves the
  * wait against the route's time limit. A Document in one part makes one call either way.
  */
 const PART_CONCURRENCY = 2;

@@ -3,6 +3,9 @@ import type { JsonCompletionRequest, ModelClient } from "./model-client.ts";
 
 export const OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions";
 
+/** Enough room for a long Document's full analysis; a cut-off answer fails rather than parsing. */
+const MAX_OUTPUT_TOKENS = 32_000;
+
 type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
 export interface OpenRouterClientOptions {
@@ -15,6 +18,11 @@ export interface OpenRouterClientOptions {
 /**
  * Production ModelClient: OpenRouter's OpenAI-compatible chat completions endpoint over plain
  * fetch. The model id comes only from OPENROUTER_MODEL. Server-side only: it reads the API key.
+ *
+ * The schema travels in the system prompt, not as `response_format`: Anthropic's providers refuse
+ * the analysis schema as a constrained-decoding grammar ("compiled grammar is too large"). Nothing
+ * is lost by that, because `analyse` and `answerQuestion` check every field and every quote of
+ * the parsed answer themselves and reject anything that does not fit.
  */
 export function createOpenRouterClient(options: OpenRouterClientOptions = {}): ModelClient {
   const env = options.env ?? process.env;
@@ -34,15 +42,12 @@ export function createOpenRouterClient(options: OpenRouterClientOptions = {}): M
       const body = {
         model,
         messages: [
-          { role: "system", content: request.system },
+          { role: "system", content: `${request.system}\n\n${schemaInstruction(request)}` },
           { role: "user", content: request.user },
         ],
-        provider: { order: ["fireworks"], allow_fallbacks: false, require_parameters: true },
+        provider: { require_parameters: true },
         reasoning: { effort: "low" },
-        response_format: {
-          type: "json_schema",
-          json_schema: { name: request.schemaName, strict: true, schema: request.schema },
-        },
+        max_tokens: MAX_OUTPUT_TOKENS,
       };
 
       let response: Response;
@@ -94,12 +99,26 @@ export function createOpenRouterClient(options: OpenRouterClientOptions = {}): M
       }
 
       try {
-        return JSON.parse(content);
+        return JSON.parse(withoutCodeFence(content));
       } catch {
         throw new ModelError("unparseable", `The model's answer is not valid JSON: ${snippet(content)}`);
       }
     },
   };
+}
+
+function schemaInstruction(request: JsonCompletionRequest): string {
+  return (
+    "Output format: reply with nothing but one JSON object, no prose and no code fence. The object itself " +
+    "must match this JSON Schema exactly, not be wrapped in another object: every required property present " +
+    `at the top level, no other properties, every enum value spelled as listed.\n${JSON.stringify(request.schema)}`
+  );
+}
+
+/** Models sometimes wrap JSON in a Markdown fence despite being told not to. */
+function withoutCodeFence(content: string): string {
+  const fenced = /^\s*```(?:json)?\s*\n([\s\S]*?)\n?```\s*$/.exec(content);
+  return fenced ? fenced[1] : content;
 }
 
 function describeErrorBody(raw: string): string {
