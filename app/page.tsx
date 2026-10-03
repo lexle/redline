@@ -4,6 +4,7 @@ import { flags } from "./_landing/sample-agreement";
 import styles from "./_landing/landing.module.css";
 
 const APP_ENTRY = "/app";
+const SIGN_IN = "/sign-in";
 
 export default function Home() {
   const lead = flags[0];
@@ -14,6 +15,9 @@ export default function Home() {
         <a href="/" className={styles.wordmark}>
           Redline
           <span className={styles.wordmarkFlag} aria-hidden="true" />
+        </a>
+        <a href={SIGN_IN} className={styles.mastheadLink}>
+          Sign in
         </a>
       </header>
 

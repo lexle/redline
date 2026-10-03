@@ -7,7 +7,26 @@
 }
 
 .masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   padding-block: 28px 0;
+}
+
+.mastheadLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--desk-ink-2);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: color 180ms var(--ease);
+}
+
+.mastheadLink:hover {
+  color: var(--desk-ink);
 }
 
 .wordmark {
